@@ -1,0 +1,69 @@
+.cta-section {
+    padding-top: 4rem;   /* más espacio vertical */
+    padding-bottom: 4rem;
+    background-color: #006a3e; /* Fondo verde */
+    color: white; /* Texto blanco */
+}
+
+@media (min-width: 640px) {
+    .cta-section {
+        padding-top: 5rem;
+        padding-bottom: 5rem;
+    }
+}
+
+@media (min-width: 1024px) {
+    .cta-section {
+        padding-top: 6rem;
+        padding-bottom: 6rem;
+    }
+}
+
+.cta-container {
+    max-width: 768px;
+    margin: 0 auto;
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    gap: 2rem; /* más aire entre título, subtítulo y botón */
+}
+
+.cta-title {
+    font-size: 1.9rem;
+    font-weight: bold;
+    font-family: 'Space Grotesk', sans-serif;
+}
+
+@media (min-width: 768px) {
+    .cta-title {
+        font-size: 2.7rem;
+    }
+}
+
+.cta-subtitle {
+    font-size: 1.1rem;
+    opacity: 0.9;
+    max-width: 42rem;
+    margin: 0 auto;
+    line-height: 1.7; /* mejor legibilidad */
+}
+
+.cta-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem 2rem; /* más grande */
+    background-color: #008254; /* Botón verde */
+    color: white;
+    border-radius: 0.6rem;
+    font-weight: 600;
+    text-decoration: none;
+    margin-top: 1.5rem; /* más separación del texto */
+    transition: all 0.3s ease;
+    font-size: 1rem;
+}
+
+.cta-button:hover {
+    transform: scale(1.05);
+    background-color: #2a8f65;
+}
