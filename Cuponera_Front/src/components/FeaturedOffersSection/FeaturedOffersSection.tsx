@@ -126,7 +126,7 @@ export default function FeaturedOffers() {
 
     return (
         <section className="featured-section">
-            <div className="container-responsive">
+            <div className="featured-container">
                 {/* Header */}
                 <div className="featured-header">
                     <div>
