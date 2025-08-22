@@ -1,0 +1,173 @@
+/* Contenedor principal */
+.nav {
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(8px);
+    border-bottom: 1px solid #e5e7eb;
+    position: sticky;
+    top: 0;
+    z-index: 50;
+    transition: all 0.3s ease;
+}
+
+.nav-container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 1rem;
+}
+
+.nav-content {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    height: 4rem;
+}
+
+/* Logo */
+.nav-logo {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    transition: opacity 0.3s ease;
+    text-decoration: none;
+}
+
+.nav-logo:hover {
+    opacity: 0.8;
+}
+
+.nav-logo-icon {
+    height: 1.5rem;
+    width: 1.5rem;
+    color: #059669;
+    /* verde */
+}
+
+.nav-logo-text {
+    font-weight: bold;
+    font-size: 1.25rem;
+    font-family: 'Space Grotesk', sans-serif;
+    color: #111827;
+}
+
+/* Desktop Navigation */
+.nav-links {
+    display: none;
+}
+
+@media (min-width: 768px) {
+    .nav-links {
+        display: flex;
+        align-items: center;
+        gap: 1.5rem;
+    }
+}
+
+.nav-link {
+    color: #6b7280;
+    font-size: 0.9rem;
+    transition: color 0.3s ease;
+    text-decoration: none;
+}
+
+.nav-link:hover {
+    color: #111827;
+}
+
+.nav-buttons {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+/* Botones */
+.btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.5rem 0.9rem;
+    border-radius: 0.5rem;
+    font-size: 0.875rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    text-decoration: none;
+}
+
+.btn-icon {
+    height: 1rem;
+    width: 1rem;
+    margin-right: 0.5rem;
+}
+
+.btn-primary {
+    background-color: #059669;
+    color: white;
+}
+
+.btn-primary:hover {
+    background-color: #047857;
+}
+
+.btn-ghost {
+    background: transparent;
+    color: #374151;
+}
+
+.btn-ghost:hover {
+    background-color: #f3f4f6;
+}
+
+/* Mobile toggle */
+.nav-mobile-toggle {
+    display: flex;
+}
+
+@media (min-width: 768px) {
+    .nav-mobile-toggle {
+        display: none;
+    }
+}
+
+.menu-icon {
+    height: 1.25rem;
+    width: 1.25rem;
+}
+
+/* Mobile Navigation */
+.nav-mobile-menu {
+    display: flex;
+    flex-direction: column;
+    border-top: 1px solid #e5e7eb;
+    animation: slideUp 0.3s ease;
+}
+
+.nav-mobile-link {
+    padding: 0.75rem 1rem;
+    color: #6b7280;
+    text-decoration: none;
+    transition: color 0.3s ease;
+}
+
+.nav-mobile-link:hover {
+    color: #111827;
+}
+
+.nav-mobile-buttons {
+    padding: 0.75rem 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+/* Animación */
+@keyframes slideUp {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
