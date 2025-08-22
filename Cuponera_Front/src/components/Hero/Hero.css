@@ -1,25 +1,21 @@
-/* Fondo en tonos verdes */
+/* Background */
 .hero-section {
     position: relative;
     background: linear-gradient(to bottom right,
             rgba(16, 185, 129, 0.1),
-            /* verde/10 */
             #fff,
-            /* fondo */
             rgba(16, 185, 129, 0.05)
-            /* verde claro */
         );
     padding: 3rem 1rem;
 }
 
-/* Centrado responsivo */
+/* responsive container */
 .hero-container {
     max-width: 1200px;
     margin: 0 auto;
     padding: 0 1rem;
 }
 
-/* Grid 1 columna en móvil, 2 en desktop */
 .hero-grid {
     display: grid;
     grid-template-columns: 1fr;
@@ -34,7 +30,7 @@
     }
 }
 
-/* Texto */
+/* Text */
 .hero-title {
     font-size: 2.5rem;
     font-weight: bold;
@@ -45,18 +41,16 @@
 
 .highlight {
     color: #008254;
-    /* verde */
 }
 
 .hero-subtitle {
     font-size: 1rem;
     color: #4b5563;
-    /* gris */
     margin-top: 1rem;
     max-width: 36rem;
 }
 
-/* Botones */
+/* Buttons */
 .hero-buttons {
     display: flex;
     flex-direction: column;
@@ -79,13 +73,11 @@
 
 .btn-primary {
     background-color: #008254;
-    /* verde */
     color: white;
 }
 
 .btn-primary:hover {
     background-color: #047857;
-    /* verde más oscuro */
 }
 
 .btn-outline {
@@ -120,15 +112,13 @@
 
 .metric-icon.green {
     color: #059669;
-    /* verde */
 }
 
 .metric-icon.yellow {
     color: #fbbf24;
-    /* amarillo */
 }
 
-/* Imagen */
+/* Image */
 .hero-image .image {
     width: 100%;
     height: auto;

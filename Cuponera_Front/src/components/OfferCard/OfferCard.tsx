@@ -2,6 +2,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Star, MapPin, Clock } from "lucide-react"
 import { Link } from "react-router-dom"
+import "./OfferCard.css"
 
 type Offer = {
     id: number
@@ -48,7 +49,7 @@ export default function OfferCard({ offer, style }: OfferCardProps) {
                 <p className="offer-company">{offer.company}</p>
             </div>
 
-            <div className="px-3 pb-3 space-y-3">
+            <div className="offer-content">
                 {/* Price + Rating */}
                 <div className="offer-price-rating">
                     <div className="offer-price">
@@ -75,9 +76,11 @@ export default function OfferCard({ offer, style }: OfferCardProps) {
                 </div>
 
                 {/* Button */}
-                <Button className="offer-btn" asChild>
-                    <Link to={`/oferta/${offer.id}`}>Ver Oferta</Link>
-                </Button>
+                <div className="offer-btn-wrapper">
+                    <Button className="bg-[#008254] hover:bg-[#2a8f65] text-white font-semibold rounded-lg offer-btn" asChild>
+                        <Link to={`/oferta/${offer.id}`}>Ver Oferta</Link>
+                    </Button>
+                </div>
             </div>
         </div>
     )
