@@ -24,6 +24,8 @@ class AuthController extends Controller
             'password' => Hash::make($request->password),
         ]);
 
+        $user->assignRole('user'); // default role
+
         $token = JWTAuth::fromUser($user);
 
         return response()->json(compact('user', 'token'), 201);
@@ -44,7 +46,7 @@ class AuthController extends Controller
     // Obtener usuario autenticado
     public function me()
     {
-        return response()->json(auth()->user());
+        return response()->json(auth()->user()->load('roles'));
     }
 
     // Logout
@@ -53,4 +55,12 @@ class AuthController extends Controller
         auth()->logout();
         return response()->json(['message' => 'Sesión cerrada']);
     }
+
+    //all users
+    public function indexUsers()
+    {
+        $users = User::with('roles:id,name')->get(['id','name','email','created_at']);
+        return response()->json($users);
+    }
+
 }
