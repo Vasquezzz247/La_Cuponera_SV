@@ -6,6 +6,7 @@ use Illuminate\Http\Request;
 use App\Models\User;
 use Illuminate\Support\Facades\Hash;
 use Tymon\JWTAuth\Facades\JWTAuth;
+use App\Models\BusinessRequest;
 
 class AuthController extends Controller
 {
@@ -63,4 +64,47 @@ class AuthController extends Controller
         return response()->json($users);
     }
 
+    // Usuario solicita ser business
+    public function requestBusiness()
+    {
+        $user = auth()->user();
+
+        // Verificar si ya hay una solicitud pendiente
+        if (BusinessRequest::where('user_id', $user->id)->where('status', 'pending')->exists()) {
+            return response()->json(['message' => 'Ya tienes una solicitud pendiente'], 400);
+        }
+
+        $request = BusinessRequest::create([
+            'user_id' => $user->id,
+        ]);
+
+        return response()->json(['message' => 'Solicitud enviada', 'request' => $request], 201);
+    }
+
+    public function listBusinessRequests()
+    {
+        $requests = BusinessRequest::with('user')->where('status', 'pending')->get();
+        return response()->json($requests);
+    }
+
+    // Admin aprueba
+    public function approveBusinessRequest($id)
+    {
+        $request = BusinessRequest::findOrFail($id);
+        $request->update(['status' => 'approved']);
+
+        $user = $request->user;
+        $user->assignRole('business');
+
+        return response()->json(['message' => 'Solicitud aprobada', 'user' => $user]);
+    }
+
+    // Admin rechaza
+    public function rejectBusinessRequest($id)
+    {
+        $request = BusinessRequest::findOrFail($id);
+        $request->update(['status' => 'rejected']);
+
+        return response()->json(['message' => 'Solicitud rechazada']);
+    }
 }

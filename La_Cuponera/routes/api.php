@@ -22,4 +22,15 @@ Route::middleware('auth:api')->group(function () {
 
     Route::get('business/ping', fn() => ['ok' => true, 'role' => 'business'])
         ->middleware('role:business');
+
+    Route::post('request-business', [AuthController::class, 'requestBusiness']);
+
+    Route::get('business-requests', [AuthController::class, 'listBusinessRequests'])
+        ->middleware('role:admin');
+
+    Route::post('business-requests/{id}/approve', [AuthController::class, 'approveBusinessRequest'])
+        ->middleware('role:admin');
+
+    Route::post('business-requests/{id}/reject', [AuthController::class, 'rejectBusinessRequest'])
+        ->middleware('role:admin');
 });
