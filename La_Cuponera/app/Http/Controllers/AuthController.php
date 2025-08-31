@@ -13,26 +13,30 @@ class AuthController extends Controller
     public function register(Request $request)
     {
         $request->validate([
-            'name'      => 'required|string|max:255',
-            'last_name' => 'required|string|max:255',
-            'dui'       => 'required|string|max:25|unique:users,dui',
-            'email'     => 'required|string|email|unique:users,email',
-            'password'  => 'required|string|min:6|confirmed',
+            'username'        => 'required|string|min:3|max:50|alpha_num|unique:users,username',
+            'email'           => 'required|string|email|max:255|unique:users,email',
+            'password'        => 'required|string|min:6|confirmed',
+            'name'            => 'required|string|max:255',
+            'last_name'       => 'required|string|max:255',
+            'dui'             => 'required|string|max:25|unique:users,dui',
+            'date_of_birth'   => 'required|date|before_or_equal:' . now()->subYears(18)->toDateString(),
         ]);
 
         $user = User::create([
-            'name'      => $request->name,
-            'last_name' => $request->last_name,
-            'dui'       => $request->dui,
-            'email'     => $request->email,
-            'password'  => Hash::make($request->password),
+            'username'       => $request->username,
+            'name'           => $request->name,
+            'last_name'      => $request->last_name,
+            'dui'            => $request->dui,
+            'date_of_birth'  => $request->date_of_birth,
+            'email'          => $request->email,
+            'password'       => Hash::make($request->password),
         ]);
 
         $user->assignRole('user');
 
         $token = JWTAuth::fromUser($user);
 
-        return response()->json(compact('user', 'token'), 201);
+        return response()->json(compact('user'), 201);
     }
 
     // Login
@@ -66,7 +70,6 @@ class AuthController extends Controller
         return response()->json($users);
     }
 
-    // Usuario solicita ser business
     public function requestBusiness(Request $request)
     {
         $user = auth()->user();
@@ -76,11 +79,13 @@ class AuthController extends Controller
         }
 
         $data = $request->validate([
-            'company_name'        => 'required|string|max:255',
-            'company_phone'       => 'nullable|string|max:50',
-            'company_address'     => 'nullable|string|max:255',
-            'company_description' => 'nullable|string|max:2000',
-            'platform_fee_percent'=> 'required|numeric|min:0|max:100', // percent from 0–100
+            'company_name'          => 'required|string|max:255',
+            'company_nit'           => 'required|string|max:30',
+            'company_email'         => 'required|email|max:255',
+            'company_phone'         => 'required|string|max:50',
+            'company_address'       => 'required|string|max:255',
+            'company_description'   => 'nullable|string|max:2000',
+            'platform_fee_percent'  => 'required|numeric|min:0|max:100',
         ]);
 
         $req = BusinessRequest::create([
@@ -91,7 +96,6 @@ class AuthController extends Controller
 
         return response()->json(['message' => 'Solicitud enviada', 'request' => $req], 201);
     }
-
 
     public function listBusinessRequests()
     {

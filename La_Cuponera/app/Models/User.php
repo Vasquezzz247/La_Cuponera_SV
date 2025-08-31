@@ -2,7 +2,6 @@
 
 namespace App\Models;
 
-// use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
@@ -14,10 +13,13 @@ class User extends Authenticatable implements JWTSubject
 {
     use HasApiTokens, HasFactory, Notifiable, HasRoles;
 
-    protected $fillable = ['name', 'last_name', 'email', 'dui', 'password', 'platform_fee_percent'];
+    protected $fillable = [
+        'username','name','last_name','email','dui','date_of_birth','password','platform_fee_percent'
+    ];
 
     protected $casts = [
         'platform_fee_percent' => 'decimal:2',
+        'date_of_birth'        => 'date',
     ];
 
     // guard api with Spatie:
