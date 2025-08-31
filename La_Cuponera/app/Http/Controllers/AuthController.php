@@ -10,22 +10,25 @@ use App\Models\BusinessRequest;
 
 class AuthController extends Controller
 {
-    // Registro
     public function register(Request $request)
     {
         $request->validate([
-            'name' => 'required|string|max:255',
-            'email' => 'required|string|email|unique:users',
-            'password' => 'required|string|min:6|confirmed',
+            'name'      => 'required|string|max:255',
+            'last_name' => 'required|string|max:255',
+            'dui'       => 'required|string|max:25|unique:users,dui',
+            'email'     => 'required|string|email|unique:users,email',
+            'password'  => 'required|string|min:6|confirmed',
         ]);
 
         $user = User::create([
-            'name' => $request->name,
-            'email' => $request->email,
-            'password' => Hash::make($request->password),
+            'name'      => $request->name,
+            'last_name' => $request->last_name,
+            'dui'       => $request->dui,
+            'email'     => $request->email,
+            'password'  => Hash::make($request->password),
         ]);
 
-        $user->assignRole('user'); // default role
+        $user->assignRole('user');
 
         $token = JWTAuth::fromUser($user);
 
@@ -44,7 +47,6 @@ class AuthController extends Controller
         return response()->json(compact('token'));
     }
 
-    // Obtener usuario autenticado
     public function me()
     {
         return response()->json(auth()->user()->load('roles'));
@@ -65,21 +67,31 @@ class AuthController extends Controller
     }
 
     // Usuario solicita ser business
-    public function requestBusiness()
+    public function requestBusiness(Request $request)
     {
         $user = auth()->user();
 
-        // Verificar si ya hay una solicitud pendiente
         if (BusinessRequest::where('user_id', $user->id)->where('status', 'pending')->exists()) {
             return response()->json(['message' => 'Ya tienes una solicitud pendiente'], 400);
         }
 
-        $request = BusinessRequest::create([
-            'user_id' => $user->id,
+        $data = $request->validate([
+            'company_name'        => 'required|string|max:255',
+            'company_phone'       => 'nullable|string|max:50',
+            'company_address'     => 'nullable|string|max:255',
+            'company_description' => 'nullable|string|max:2000',
+            'platform_fee_percent'=> 'required|numeric|min:0|max:100', // percent from 0–100
         ]);
 
-        return response()->json(['message' => 'Solicitud enviada', 'request' => $request], 201);
+        $req = BusinessRequest::create([
+            'user_id' => $user->id,
+            'status'  => 'pending',
+            ...$data,
+        ]);
+
+        return response()->json(['message' => 'Solicitud enviada', 'request' => $req], 201);
     }
+
 
     public function listBusinessRequests()
     {
@@ -87,19 +99,32 @@ class AuthController extends Controller
         return response()->json($requests);
     }
 
-    // Admin aprueba
+    // Admin approves
     public function approveBusinessRequest($id)
     {
         $request = BusinessRequest::findOrFail($id);
+
+        // Marca en BD
         $request->update(['status' => 'approved']);
 
         $user = $request->user;
+
+        if (!is_null($request->platform_fee_percent)) {
+            $user->platform_fee_percent = $request->platform_fee_percent;
+            $user->save();
+        }
+
         $user->assignRole('business');
 
-        return response()->json(['message' => 'Solicitud aprobada', 'user' => $user]);
+        return response()->json([
+            'message' => 'Solicitud aprobada',
+            'user'    => $user,
+            'request' => $request
+        ]);
     }
 
-    // Admin rechaza
+
+    // Admin rejects
     public function rejectBusinessRequest($id)
     {
         $request = BusinessRequest::findOrFail($id);

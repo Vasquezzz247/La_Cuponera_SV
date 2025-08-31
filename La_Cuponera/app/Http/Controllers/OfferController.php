@@ -60,8 +60,15 @@ class OfferController extends Controller
     public function update(UpdateOfferRequest $request, Offer $offer)
     {
         $this->authorize('update', $offer);
-        $offer->update($request->validated());
-        return new OfferResource($offer->refresh()->load('owner'));
+
+        $offer->fill($request->validated());
+        $dirty = $offer->isDirty();   // ¿cambió algo?
+        if ($dirty) {
+            $offer->save();
+        }
+
+        return (new OfferResource($offer->refresh()->load('owner')))
+            ->additional(['meta' => ['updated' => $dirty]]);
     }
 
     // delete

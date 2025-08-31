@@ -8,6 +8,17 @@ class UpdateOfferRequest extends FormRequest
 {
     public function authorize(): bool { return auth()->check(); }
 
+    protected function prepareForValidation(): void
+    {
+        $offer = $this->route('offer');
+        if ($offer && !$this->has('regular_price')) {
+            $this->merge(['regular_price' => $offer->regular_price]);
+        }
+        if ($offer && !$this->has('starts_at')) {
+            $this->merge(['starts_at' => $offer->starts_at]);
+        }
+    }
+
     public function rules(): array {
         return [
             'title'         => 'sometimes|required|string|max:140',

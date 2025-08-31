@@ -14,13 +14,16 @@ class User extends Authenticatable implements JWTSubject
 {
     use HasApiTokens, HasFactory, Notifiable, HasRoles;
 
-    // asignación masiva al hacer User::create([...])
-    protected $fillable = ['name', 'email', 'password'];
+    protected $fillable = ['name', 'last_name', 'email', 'dui', 'password', 'platform_fee_percent'];
 
-    // guard api con Spatie:
+    protected $casts = [
+        'platform_fee_percent' => 'decimal:2',
+    ];
+
+    // guard api with Spatie:
     protected string $guard_name = 'api';
 
-    // Métodos requeridos por JWT
+    // Required for JWT
     public function getJWTIdentifier()
     {
         return $this->getKey();
