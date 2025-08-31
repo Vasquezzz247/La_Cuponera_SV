@@ -9,6 +9,8 @@ use App\Models\Offer;
 use App\Models\Coupon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
+use Illuminate\Support\Facades\DB;
+use App\Http\Requests\BuyOfferRequest;
 
 class OfferController extends Controller
 {
@@ -80,11 +82,10 @@ class OfferController extends Controller
     }
 
     // buy offer
-    public function buy(Request $request, Offer $offer)
+    public function buy(BuyOfferRequest $request, Offer $offer)
     {
         $user = auth()->user();
 
-        // No permitir que el dueño compre su propia oferta (opcional)
         if ($user->id === $offer->user_id) {
             return response()->json(['message' => 'No puedes comprar tu propia oferta'], 403);
         }
@@ -94,33 +95,116 @@ class OfferController extends Controller
             return response()->json(['message' => 'La oferta no está disponible'], 422);
         }
 
-        // check quantity
+        $already = Coupon::where('offer_id', $offer->id)
+            ->where('user_id', $user->id)
+            ->count();
+        if ($already >= 5) {
+            return response()->json(['message' => 'Límite de 5 cupones para esta oferta'], 422);
+        }
+
         $offer->loadCount('coupons');
         if (!is_null($offer->quantity) && $offer->coupons_count >= $offer->quantity) {
             return response()->json(['message' => 'Agotado'], 422);
         }
 
-        // Generar código único
-        $code = null;
-        do { $code = Str::upper(Str::random(12)); }
-        while (Coupon::where('code', $code)->exists());
+        // ===================
+        // "Procesar" pago
+        // ===================
+        // No guardamos tarjeta; sólo last4 + marca básica por BIN.
+        $num = preg_replace('/\D/', '', $request->card_number);
+        $brand = match (true) {
+            str_starts_with($num, '4') => 'visa',
+            str_starts_with($num, '5') => 'mastercard',
+            str_starts_with($num, '3') => 'amex',
+            default => 'card'
+        };
+        $last4 = substr($num, -4);
 
-        $coupon = Coupon::create([
-            'offer_id' => $offer->id,
-            'user_id'  => $user->id,
-            'code'     => $code,
-            'status'   => 'active',
-        ]);
+        $unit = (float) $offer->offer_price;
+        $pct  = (float) ($offer->owner->platform_fee_percent ?? 0); // viene del user (empresa)
+        $fee  = round($unit * $pct / 100, 2);
+        $biz  = round($unit - $fee, 2);
+
+        // validar que no sobrepase el stock ni el límite (compramos 1 por request)
+        if (!is_null($offer->quantity) && ($offer->coupons_count + 1) > $offer->quantity) {
+            return response()->json(['message' => 'Agotado'], 422);
+        }
+        if (($already + 1) > 5) {
+            return response()->json(['message' => 'Límite de 5 cupones para esta oferta'], 422);
+        }
+
+        // transacción por seguridad
+        $coupon = DB::transaction(function () use ($offer, $user, $unit, $pct, $fee, $biz, $brand, $last4) {
+            // Generar código único y recibo
+            do { $code = Str::upper(Str::random(12)); } while (Coupon::where('code', $code)->exists());
+            do { $receipt = 'R-' . Str::upper(Str::random(10)); } while (Coupon::where('receipt_no', $receipt)->exists());
+
+            return Coupon::create([
+                'offer_id' => $offer->id,
+                'user_id'  => $user->id,
+                'code'     => $code,
+                'status'   => 'active',
+                'unit_price' => $unit,
+                'platform_fee_percent' => $pct,
+                'platform_fee_amount'  => $fee,
+                'business_amount'      => $biz,
+                'paid_at'   => now(),
+                'card_brand'=> $brand,
+                'card_last4'=> $last4,
+                'receipt_no'=> $receipt,
+            ]);
+        });
 
         return response()->json([
             'message' => 'Compra realizada',
+            'amounts' => [
+                'unit_price' => $unit,
+                'platform_fee_percent' => $pct,
+                'platform_fee_amount'  => $fee,
+                'business_amount'      => $biz,
+            ],
             'coupon'  => [
                 'id' => $coupon->id,
                 'code' => $coupon->code,
                 'status' => $coupon->status,
                 'offer_id' => $offer->id,
                 'redeem_by' => $offer->redeem_by->toDateString(),
+                'receipt_no' => $coupon->receipt_no,
+                'card_brand' => $coupon->card_brand,
+                'card_last4' => $coupon->card_last4,
             ],
         ], 201);
+    }
+
+    public function myCoupons(Request $request)
+    {
+        $user = auth()->user();
+
+        $coupons = Coupon::with(['offer:id,title,redeem_by,offer_price'])
+            ->where('user_id', $user->id)
+            ->latest('id')
+            ->paginate(15);
+
+        $data = $coupons->getCollection()->map(function ($c) {
+            return [
+                'id'            => $c->id,
+                'code'          => $c->code,
+                'status'        => $c->status,
+                'paid_at'       => $c->paid_at?->toIso8601String(), // ahora sí es Carbon
+                'receipt_no'    => $c->receipt_no,
+                'card_brand'    => $c->card_brand,
+                'card_last4'    => $c->card_last4,
+                'offer' => [
+                    'id'          => $c->offer->id,
+                    'title'       => $c->offer->title,
+                    'price'       => (float) $c->offer->offer_price,
+                    'redeem_by'   => $c->offer->redeem_by->toDateString(),
+                ],
+            ];
+        });
+
+        $coupons->setCollection($data);
+
+        return response()->json($coupons);
     }
 }
