@@ -1,128 +1,97 @@
-import { Button } from "@/components/ui/button"
-import { Link } from "react-router-dom"
-import OfferCard from "../OfferCard/OfferCard"
-import "./FeaturedOffersSection.css"
+// src/components/FeaturedOffers/FeaturedOffersSection.tsx
+import { useEffect, useMemo, useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Link } from "react-router-dom";
+import OfferCard from "../OfferCard/OfferCard";
+import { OffersService, type Offer } from "@/services/offers";
+import "./FeaturedOffersSection.css";
 
-// test data
-const featuredOffers = [
-    {
-        id: 1,
-        title: "Cena Romántica para Dos",
-        company: "Restaurante El Buen Sabor",
-        image: "https://picsum.photos/id/29/500/300",
-        discount: 50,
-        category: "Restaurantes",
-        discountPrice: 22.5,
-        originalPrice: 45,
-        rating: 4.8,
-        reviews: 124,
-        location: "San Salvador",
-        timeLeft: "2 días",
-    },
-    {
-        id: 2,
-        title: "Spa Relajante - Masaje Completo",
-        company: "Zen Spa & Wellness",
-        image: "https://picsum.photos/id/102/500/300",
-        discount: 50,
-        category: "Bienestar",
-        discountPrice: 40,
-        originalPrice: 80,
-        rating: 4.9,
-        reviews: 89,
-        location: "Santa Tecla",
-        timeLeft: "5 días",
-    },
-    {
-        id: 3,
-        title: "Aventura en Canopy",
-        company: "Aventuras Extremas SV",
-        image: "",
-        discount: 40,
-        category: "Aventura",
-        discountPrice: 21,
-        originalPrice: 35,
-        rating: 4.7,
-        reviews: 156,
-        location: "La Libertad",
-        timeLeft: "1 semana",
-    },
-    {
-        id: 4,
-        title: "Corte y Peinado Premium",
-        company: "Salón Belleza Total",
-        image: "https://picsum.photos/id/1074/500/300",
-        discount: 50,
-        category: "Belleza",
-        discountPrice: 12.5,
-        originalPrice: 25,
-        rating: 4.6,
-        reviews: 203,
-        location: "San Salvador",
-        timeLeft: "3 días",
-    },
-    {
-        id: 5,
-        title: "Corte y Peinado Premium",
-        company: "Salón Belleza Total",
-        image: "https://picsum.photos/id/1074/500/300",
-        discount: 50,
-        category: "Belleza",
-        discountPrice: 12.5,
-        originalPrice: 25,
-        rating: 4.6,
-        reviews: 203,
-        location: "San Salvador",
-        timeLeft: "3 días",
-    },
-    {
-        id: 6,
-        title: "Corte y Peinado Premium",
-        company: "Salón Belleza Total",
-        image: "https://picsum.photos/id/1074/500/300",
-        discount: 50,
-        category: "Belleza",
-        discountPrice: 12.5,
-        originalPrice: 25,
-        rating: 4.6,
-        reviews: 203,
-        location: "San Salvador",
-        timeLeft: "3 días",
-    },
-    {
-        id: 7,
-        title: "Corte y Peinado Premium",
-        company: "Salón Belleza Total",
-        image: "https://picsum.photos/id/1074/500/300",
-        discount: 50,
-        category: "Belleza",
-        discountPrice: 12.5,
-        originalPrice: 25,
-        rating: 4.6,
-        reviews: 203,
-        location: "San Salvador",
-        timeLeft: "3 días",
-    },
-    {
-        id: 8,
-        title: "Corte y Peinado Premium",
-        company: "Salón Belleza Total",
-        image: "https://picsum.photos/id/1074/500/300",
-        discount: 50,
-        category: "Belleza",
-        discountPrice: 12.5,
-        originalPrice: 25,
-        rating: 4.6,
-        reviews: 203,
-        location: "San Salvador",
-        timeLeft: "3 días",
-    },
-]
+type CardOffer = {
+    id: number;
+    title: string;
+    company: string;
+    image: string;
+    discount: number;        // %
+    category: string;
+    discountPrice: number;   // offer_price
+    originalPrice: number;   // regular_price
+    rating: number;
+    reviews: number;
+    location: string;
+    timeLeft: string;
+};
 
+function percentOff(regular?: number, offer?: number) {
+    if (!regular || !offer || regular <= 0) return 0;
+    const pct = Math.round((1 - offer / regular) * 100);
+    return Math.max(0, Math.min(100, pct));
+}
+
+function daysLeftText(ends_at?: string) {
+    if (!ends_at) return "";
+    const end = new Date(ends_at);
+    const now = new Date();
+    // normaliza a medianoche para contar días enteros
+    end.setHours(0, 0, 0, 0);
+    now.setHours(0, 0, 0, 0);
+    const diffMs = end.getTime() - now.getTime();
+    const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+
+    if (diffDays < 0) return "Expirada";
+    if (diffDays === 0) return "Hoy";
+    if (diffDays === 1) return "1 día";
+    return `${diffDays} días`;
+}
+
+function mapToCard(o: Offer): CardOffer {
+    return {
+        id: Number(o.id),
+        title: o.title,
+        company:
+            // si tu API manda negocio embebido, ajusta estos campos
+            (o as any).business_name ??
+            (o as any).business?.name ??
+            "Empresa",
+        image: (o as any).image_url ?? "",
+        discount: percentOff(o.regular_price as any, o.offer_price as any),
+        category: (o as any).category ?? "General",
+        discountPrice: Number(o.offer_price),
+        originalPrice: Number(o.regular_price),
+        rating: (o as any).rating ?? 0,
+        reviews: (o as any).reviews ?? 0,
+        location: (o as any).location ?? "—",
+        timeLeft: daysLeftText(o.ends_at as any),
+    };
+}
 
 export default function FeaturedOffers() {
-    // max 8 offers
-    const limitedOffers = featuredOffers.slice(0, 8)
+    const [items, setItems] = useState<CardOffer[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [err, setErr] = useState<string | null>(null);
+
+    useEffect(() => {
+        let mounted = true;
+        (async () => {
+            try {
+                setErr(null);
+                setLoading(true);
+                // si tu API soporta paginación por query params, puedes pasar { per_page: 8 }
+                const res = await OffersService.list();
+                const list = Array.isArray(res) ? res : (res as any)?.data ?? [];
+                const mapped = list.map(mapToCard).slice(0, 8);
+                if (mounted) setItems(mapped);
+            } catch (e: any) {
+                if (mounted) setErr(e?.message || "No se pudieron cargar las ofertas.");
+            } finally {
+                if (mounted) setLoading(false);
+            }
+        })();
+        return () => {
+            mounted = false;
+        };
+    }, []);
+
+    const limitedOffers = useMemo(() => items.slice(0, 8), [items]);
 
     return (
         <section className="featured-section">
@@ -131,28 +100,42 @@ export default function FeaturedOffers() {
                 <div className="featured-header">
                     <div>
                         <h2 className="featured-title">Ofertas Destacadas</h2>
-                        <p className="featured-subtitle">
-                            Las mejores ofertas disponibles ahora
-                        </p>
+                        <p className="featured-subtitle">Las mejores ofertas disponibles ahora</p>
                     </div>
                     <Button variant="outline" className="see-all-btn" asChild>
                         <Link to="/ofertas">Ver todas las ofertas</Link>
                     </Button>
                 </div>
 
+                {/* Estados */}
+                {loading && (
+                    <div className="py-10 text-center text-gray-500">Cargando ofertas…</div>
+                )}
+                {err && !loading && (
+                    <div className="py-10 text-center text-red-600">{err}</div>
+                )}
+
                 {/* Scroll horizontal */}
-                <div className="featured-scroll-container">
-                    <div className="featured-scroll">
-                        {limitedOffers.map((offer, index) => (
-                            <OfferCard
-                                key={offer.id}
-                                offer={offer}
-                                style={{ animationDelay: `${index * 0.1}s` }}
-                            />
-                        ))}
+                {!loading && !err && (
+                    <div className="featured-scroll-container">
+                        <div className="featured-scroll">
+                            {limitedOffers.map((offer, index) => (
+                                <OfferCard
+                                    key={offer.id}
+                                    offer={offer}
+                                    style={{ animationDelay: `${index * 0.1}s` }}
+                                />
+                            ))}
+
+                            {limitedOffers.length === 0 && (
+                                <div className="py-10 text-center text-gray-500 w-full">
+                                    No hay ofertas disponibles.
+                                </div>
+                            )}
+                        </div>
                     </div>
-                </div>
+                )}
             </div>
         </section>
-    )
+    );
 }

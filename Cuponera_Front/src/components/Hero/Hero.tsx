@@ -1,7 +1,7 @@
 import React from "react";
 import { Link } from "react-router-dom";
 import { Users, Star } from "lucide-react";
-import logo from "../../assets/logos/logo1.jpg";
+import logo from "../../assets/logos/CuponeraAlter.png";
 import "./Hero.css";
 
 const Hero: React.FC = () => {
