@@ -1,11 +1,11 @@
-// src/App.tsx
-import React from "react";
+//import React from "react";
 import { Route, Routes } from "react-router-dom";
 import Landing from "./pages/Landing";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 import RegisterCompany from "./pages/RegisterCompany";
 import ProfilePage from "@/pages/ProfilePage";
+import BusinessPortalPage from "./pages/BusinessPortalPage";
 
 function App() {
   return (
@@ -15,6 +15,7 @@ function App() {
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
       <Route path="/register-company" element={<RegisterCompany />} />
+      <Route path="/business-portal/*" element={<BusinessPortalPage />} />
       <Route path="*" element={<div style={{padding: 24}}>404</div>} />
     </Routes>
   );
