@@ -1,5 +1,5 @@
 // src/pages/business/BusinessPortalPage.tsx
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
     Activity,
@@ -8,6 +8,9 @@ import {
     BadgeDollarSign,
     Plus,
     Bell,
+    LogOut,
+    Home,
+    ChevronDown,
 } from "lucide-react";
 
 import Sidebar from "@/components/portal/Sidebar";
@@ -15,6 +18,8 @@ import TopBar from "@/components/portal/TopBar";
 import StatCard from "@/components/portal/StatCard";
 import SectionTitle from "@/components/portal/SectionTitle";
 import EmptyState from "@/components/portal/EmptyState";
+
+import AccountService, { type MeResponse, getDisplayName } from "@/services/account";
 
 // --- mock temporal ---
 type MiniOffer = {
@@ -43,11 +48,104 @@ function daysLeftText(iso: string) {
     return `${diff} días`;
 }
 
+/** Menú de usuario (nombre clickeable con dropdown) */
+function UserMenu({
+    name,
+    email,
+    onLogout,
+    onExit,
+}: {
+    name: string;
+    email?: string;
+    onLogout: () => Promise<void> | void;
+    onExit: () => void;
+}) {
+    const [open, setOpen] = useState(false);
+    const ref = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        const onDocClick = (e: MouseEvent) => {
+            if (!ref.current) return;
+            if (!ref.current.contains(e.target as Node)) setOpen(false);
+        };
+        document.addEventListener("mousedown", onDocClick);
+        return () => document.removeEventListener("mousedown", onDocClick);
+    }, []);
+
+    const initials = (name || "E").slice(0, 1).toUpperCase();
+
+    return (
+        <div className="relative" ref={ref}>
+            <button
+                onClick={() => setOpen((v) => !v)}
+                className="flex items-center gap-3 rounded-lg border bg-white px-2.5 py-2 hover:bg-gray-50 sm:px-3"
+                aria-haspopup="menu"
+                aria-expanded={open}
+            >
+                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-600 text-white">
+                    {initials}
+                </div>
+                <div className="hidden text-left sm:block">
+                    <div className="text-sm font-medium text-gray-900">{name}</div>
+                    {email ? <div className="text-xs text-gray-500">{email}</div> : null}
+                </div>
+                <ChevronDown className="h-4 w-4 text-gray-600" />
+            </button>
+
+            {open && (
+                <div
+                    role="menu"
+                    className="absolute right-0 z-50 mt-2 w-56 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-lg"
+                >
+                    <button
+                        className="flex w-full items-center gap-2 px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
+                        onClick={onExit}
+                    >
+                        <Home className="h-4 w-4" />
+                        Ir al inicio
+                    </button>
+                    <button
+                        className="flex w-full items-center gap-2 px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50"
+                        onClick={onLogout}
+                    >
+                        <LogOut className="h-4 w-4" />
+                        Cerrar sesión
+                    </button>
+                </div>
+            )}
+        </div>
+    );
+}
+
 export default function BusinessPortalPage() {
     const navigate = useNavigate();
 
     // estado UI
     const [q, setQ] = useState("");
+
+    // estado responsive: sidebar mobile
+    const [mobileNavOpen, setMobileNavOpen] = useState(false);
+
+    // /me
+    const [me, setMe] = useState<MeResponse | null>(null);
+    const [loadingMe, setLoadingMe] = useState(true);
+
+    useEffect(() => {
+        let mounted = true;
+        (async () => {
+            try {
+                const data = await AccountService.me();
+                if (mounted) setMe(data);
+            } catch (e) {
+                console.error("No se pudo cargar /me:", e);
+            } finally {
+                if (mounted) setLoadingMe(false);
+            }
+        })();
+        return () => {
+            mounted = false;
+        };
+    }, []);
 
     const filtered = useMemo(() => {
         const t = q.trim().toLowerCase();
@@ -64,37 +162,107 @@ export default function BusinessPortalPage() {
         return { active, soldTotal, expiring, revenue };
     }, []);
 
+    const displayName = loadingMe ? "Cargando…" : getDisplayName(me);
+    const displayEmail = me?.email ?? "";
+
+    async function handleLogout() {
+        try {
+            // await apiFetch<void>("/logout", { method: "POST", auth: true });
+        } catch {
+            /* ignore */
+        } finally {
+            localStorage.removeItem("auth_token");
+            navigate("/", { replace: true });
+        }
+    }
+
+    function handleExitPortal() {
+        navigate("/", { replace: true });
+    }
+
+    // Evita scroll del body cuando el drawer está abierto
+    useEffect(() => {
+        if (mobileNavOpen) document.body.style.overflow = "hidden";
+        else document.body.style.overflow = "";
+        return () => {
+            document.body.style.overflow = "";
+        };
+    }, [mobileNavOpen]);
+
     return (
         <div className="min-h-screen w-full bg-gray-50">
-            {/* SIDEBAR usando TU componente */}
-            <Sidebar
-                brand={{
-                    icon: Activity,
-                    title: "Portal Empresas",
-                    subtitle: "La Cuponera SV",
-                    iconBgClass: "from-emerald-500 to-emerald-600",
-                }}
-                items={[
-                    { id: "dashboard", label: "Dashboard", icon: Activity },
-                    { id: "my-offers", label: "Mis Cupones", icon: CheckCircle2 },
-                    { id: "new", label: "Nuevo Cupón", icon: Plus },
-                    { id: "settings", label: "Ajustes", icon: Bell },
-                ]}
-                activeId="dashboard"
-                onSelect={(id) => {
-                    const routes: Record<string, string> = {
-                        dashboard: "/business-portal",
-                        "my-offers": "/business-portal/offers",
-                        new: "/business-portal/offers/new",
-                        settings: "/business-portal/settings",
-                    };
-                    navigate(routes[id] ?? "/business-portal");
-                }}
-            />
+            {/* SIDEBAR desktop */}
+            <div className="hidden lg:block">
+                <Sidebar
+                    brand={{
+                        icon: Activity,
+                        title: "Portal Empresas",
+                        subtitle: "La Cuponera SV",
+                        iconBgClass: "from-emerald-500 to-emerald-600",
+                    }}
+                    items={[
+                        { id: "dashboard", label: "Dashboard", icon: Activity },
+                        { id: "my-offers", label: "Mis Cupones", icon: CheckCircle2 },
+                        { id: "new", label: "Nuevo Cupón", icon: Plus },
+                        { id: "settings", label: "Ajustes", icon: Bell },
+                    ]}
+                    activeId="dashboard"
+                    onSelect={(id) => {
+                        const routes: Record<string, string> = {
+                            dashboard: "/business-portal",
+                            "my-offers": "/business-portal/offers",
+                            new: "/business-portal/offers/new",
+                            settings: "/business-portal/settings",
+                        };
+                        navigate(routes[id] ?? "/business-portal");
+                    }}
+                />
+            </div>
+
+            {/* SIDEBAR mobile (drawer) */}
+            {mobileNavOpen && (
+                <div className="fixed inset-0 z-50 flex lg:hidden">
+                    {/* overlay */}
+                    <div
+                        className="absolute inset-0 bg-black/40"
+                        onClick={() => setMobileNavOpen(false)}
+                    />
+                    {/* panel */}
+                    <div className="relative z-10 h-full w-80 max-w-[85%] bg-white shadow-2xl">
+                        <div className="h-full overflow-y-auto">
+                            <Sidebar
+                                brand={{
+                                    icon: Activity,
+                                    title: "Portal Empresas",
+                                    subtitle: "La Cuponera SV",
+                                    iconBgClass: "from-emerald-500 to-emerald-600",
+                                }}
+                                items={[
+                                    { id: "dashboard", label: "Dashboard", icon: Activity },
+                                    { id: "my-offers", label: "Mis Cupones", icon: CheckCircle2 },
+                                    { id: "new", label: "Nuevo Cupón", icon: Plus },
+                                    { id: "settings", label: "Ajustes", icon: Bell },
+                                ]}
+                                activeId="dashboard"
+                                onSelect={(id) => {
+                                    const routes: Record<string, string> = {
+                                        dashboard: "/business-portal",
+                                        "my-offers": "/business-portal/offers",
+                                        new: "/business-portal/offers/new",
+                                        settings: "/business-portal/settings",
+                                    };
+                                    navigate(routes[id] ?? "/business-portal");
+                                    setMobileNavOpen(false);
+                                }}
+                            />
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* CONTENIDO */}
             <div className="lg:pl-64">
-                {/* TOPBAR usando TU componente */}
+                {/* TOPBAR */}
                 <TopBar
                     title="Dashboard"
                     searchPlaceholder="Buscar cupones…"
@@ -105,19 +273,34 @@ export default function BusinessPortalPage() {
                         onClick: () => navigate("/business-portal/offers/new"),
                     }}
                     rightExtra={
-                        <button className="inline-flex items-center justify-center rounded-lg border bg-white px-3 py-2 hover:bg-gray-50">
-                            <Bell className="h-4 w-4 text-gray-600" />
-                        </button>
+                        <div className="flex items-center gap-2">
+                            {/* botón hamburger solo en mobile */}
+                            <button
+                                className="inline-flex items-center justify-center rounded-lg border bg-white p-2 hover:bg-gray-50 lg:hidden"
+                                aria-label="Abrir menú"
+                                onClick={() => setMobileNavOpen(true)}
+                            >
+                                {/* ícono hamburger con 3 barras usando SVG simple para evitar otra lib */}
+                                <svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true">
+                                    <path d="M3 5h14M3 10h14M3 15h14" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                                </svg>
+                            </button>
+
+                            <button className="inline-flex items-center justify-center rounded-lg border bg-white p-2 hover:bg-gray-50">
+                                <Bell className="h-4 w-4 text-gray-600" />
+                            </button>
+                            <UserMenu
+                                name={displayName || "Mi empresa"}
+                                email={displayEmail}
+                                onLogout={handleLogout}
+                                onExit={handleExitPortal}
+                            />
+                        </div>
                     }
-                    avatar={{
-                        initials: "R",
-                        name: "Restaurant El Buen Sabor",
-                        email: "contacto@elbuensabor.com",
-                    }}
                 />
 
-                <main className="mx-auto max-w-7xl p-4 lg:p-6">
-                    <p className="text-gray-500 -mt-1 mb-5">Resumen de tu actividad reciente</p>
+                <main className="mx-auto max-w-7xl px-3 py-4 sm:px-4 lg:p-6">
+                    <p className="mb-5 -mt-1 text-gray-500">Resumen de tu actividad reciente</p>
 
                     {/* KPIs */}
                     <SectionTitle title="Resumen" />
@@ -172,7 +355,7 @@ export default function BusinessPortalPage() {
                         />
                     ) : (
                         <div className="mt-3 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
-                            <div className="hidden grid-cols-[1fr,140px,140px,120px,120px] gap-4 border-b px-4 py-3 text-sm font-medium text-gray-600 sm:grid">
+                            <div className="hidden grid-cols-[1fr,120px,120px,120px,120px] gap-4 border-b px-4 py-3 text-sm font-medium text-gray-600 sm:grid">
                                 <div>Título</div>
                                 <div className="text-center">Estado</div>
                                 <div className="text-center">Vendidos</div>
@@ -184,7 +367,7 @@ export default function BusinessPortalPage() {
                                 {filtered.map((o) => (
                                     <li
                                         key={o.id}
-                                        className="grid grid-cols-1 gap-3 px-4 py-3 text-gray-700 sm:grid-cols-[1fr,140px,140px,120px,120px]"
+                                        className="grid grid-cols-1 gap-3 px-4 py-3 text-gray-700 sm:grid-cols-[1fr,120px,120px,120px,120px]"
                                     >
                                         <div className="font-medium">{o.title}</div>
 
@@ -197,11 +380,7 @@ export default function BusinessPortalPage() {
                                                             : "bg-gray-100 text-gray-600 ring-1 ring-gray-200"
                                                     }`}
                                             >
-                                                {o.status === "active"
-                                                    ? "Activo"
-                                                    : o.status === "pending"
-                                                        ? "Pendiente"
-                                                        : "Expirado"}
+                                                {o.status === "active" ? "Activo" : o.status === "pending" ? "Pendiente" : "Expirado"}
                                             </span>
                                         </div>
 

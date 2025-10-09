@@ -1,26 +1,31 @@
 // src/services/offers.ts
 import { apiFetch } from "@/lib/http";
 
-/** Modelo principal según tu API */
+/** Modelo principal según tu API (GET /offers, /offers/:id, /offers/mine) */
 export type Offer = {
     id: number | string;
     title: string;
     regular_price: number;
     offer_price: number;
-    starts_at: string; // "YYYY-MM-DD"
-    ends_at: string;   // "YYYY-MM-DD"
-    redeem_by: string; // "YYYY-MM-DD"
+    starts_at: string;   // "YYYY-MM-DD"
+    ends_at: string;     // "YYYY-MM-DD"
+    redeem_by: string;   // "YYYY-MM-DD"
     quantity: number;
+    sold_out: boolean;   // <- viene en la respuesta
     description?: string;
     status: "available" | "sold_out" | "expired" | string;
-    image_url?: string;
-    business_id?: number | string;
-    created_at?: string;
+    owner: {             // <- viene en la respuesta
+        id: number;
+        name: string;
+    };
+    created_at?: string; // p.ej. "2025-09-24T01:41:38+00:00"
     updated_at?: string;
+    // Campos adicionales que puedas agregar después:
+    image_url?: string;
     [k: string]: any;
 };
 
-/** Payload para crear */
+/** Payload para crear (POST /offers) */
 export type OfferCreate = {
     title: string;
     regular_price: number;
@@ -31,11 +36,14 @@ export type OfferCreate = {
     quantity: number;
     description?: string;
     status: "available" | "sold_out" | "expired" | string;
-    image_url?: string;
+    // image_url?: string; // si luego lo agregas en el backend, lo habilitas aquí
     [k: string]: any;
 };
 
-/** 💳 Payload para pago con tarjeta */
+/** Payload para actualizar (PATCH /offers/:id) — parcial */
+export type OfferUpdate = Partial<OfferCreate>;
+
+/** 💳 Pago con tarjeta (POST /offers/:id/buy) */
 export type CardPaymentPayload = {
     card_number: string;
     exp_month: number;
@@ -43,10 +51,7 @@ export type CardPaymentPayload = {
     cvc: string;
 };
 
-/** Payload para actualizar (parcial) */
-export type OfferUpdate = Partial<OfferCreate>;
-
-/** Cupón/compras del usuario */
+/** Cupón/compras del usuario (GET /my/coupons) */
 export type Coupon = {
     id: number | string;
     offer_id: number | string;
@@ -57,6 +62,7 @@ export type Coupon = {
     [k: string]: any;
 };
 
+/** Respuesta de compra (ajústalo si tu backend devuelve otra cosa) */
 export type PurchaseResponse = {
     success?: boolean;
     message?: string;
@@ -90,30 +96,27 @@ export const OffersService = {
         apiFetch<Offer[]>(`/offers${toQuery(params as any)}`, { method: "GET" }),
 
     /** GET /offers/mine — ofertas del negocio autenticado */
-    mine: () => apiFetch<Offer[]>(`/offers/mine`, { method: "GET", auth: true }),
+    mine: () =>
+        apiFetch<Offer[]>(`/offers/mine`, { method: "GET", auth: true }),
 
     /** GET /offers/:id — detalle público */
     get: (id: string | number) =>
         apiFetch<Offer>(`/offers/${id}`, { method: "GET" }),
 
-    /** POST /offers — crear */
+    /** POST /offers — crear (requiere auth) */
     create: (payload: OfferCreate) =>
         apiFetch<Offer>(`/offers`, { method: "POST", body: payload, auth: true }),
 
-    /** PATCH /offers/:id — actualizar */
+    /** PATCH /offers/:id — actualizar (requiere auth) */
     update: (id: string | number, payload: OfferUpdate) =>
         apiFetch<Offer>(`/offers/${id}`, { method: "PATCH", body: payload, auth: true }),
 
-    /** DELETE /offers/:id — eliminar */
+    /** DELETE /offers/:id — eliminar (requiere auth) */
     remove: (id: string | number) =>
         apiFetch<void>(`/offers/${id}`, { method: "DELETE", auth: true }),
 
-    /** POST /offers/:id/buy — comprar oferta */
-    buy: (id: string | number) =>
-        apiFetch<PurchaseResponse>(`/offers/${id}/buy`, { method: "POST", auth: true }),
-
-    /** POST /offers/:id/buy con tarjeta (simulación) */
-    buyWithCard: (id: string | number, payload: CardPaymentPayload) =>
+    /** POST /offers/:id/buy — comprar oferta (requiere auth y payload de tarjeta) */
+    buy: (id: string | number, payload: CardPaymentPayload) =>
         apiFetch<PurchaseResponse>(`/offers/${id}/buy`, {
             method: "POST",
             auth: true,

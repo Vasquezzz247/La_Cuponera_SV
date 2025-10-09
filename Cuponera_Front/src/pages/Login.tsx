@@ -8,11 +8,66 @@ type LoginResponse = {
     user?: unknown;
 };
 
+type MeResponse = {
+    roles?: Array<{ id: number | string; name: string }> | string[] | string;
+    [k: string]: any;
+};
+
+// --- Helpers ---
+function normalizeToken(raw?: string | null): string | null {
+    if (!raw) return null;
+    return raw.startsWith("Bearer ") ? raw.slice(7) : raw;
+}
+
+function parseJwt(token: string): any | null {
+    try {
+        const base64Url = token.split(".")[1];
+        const base64 = base64Url.replace(/-/g, "+").replace(/_/g, "/");
+        const jsonPayload = decodeURIComponent(
+            atob(base64)
+                .split("")
+                .map((c) => "%" + ("00" + c.charCodeAt(0).toString(16)).slice(-2))
+                .join("")
+        );
+        return JSON.parse(jsonPayload);
+    } catch {
+        return null;
+    }
+}
+
+function hasAdminRoleFromAny(payload: any): boolean {
+    if (!payload) return false;
+    const roles = new Set<string>();
+
+    const add = (v: any) => {
+        if (!v) return;
+        if (typeof v === "string") {
+            v
+                .split(/[,\s]+/)
+                .filter(Boolean)
+                .forEach((r) => roles.add(r.toLowerCase()));
+        } else if (Array.isArray(v)) {
+            v.forEach((r) => {
+                if (typeof r === "string") roles.add(r.toLowerCase());
+                else if (r && typeof r.name === "string") roles.add(r.name.toLowerCase());
+            });
+        } else if (typeof v === "object" && typeof v.name === "string") {
+            roles.add(v.name.toLowerCase());
+        }
+    };
+
+    add(payload.roles);
+    add(payload.role);
+    add(payload.scope);
+    add(payload.scopes);
+
+    return roles.has("admin");
+}
+
 export default function Login() {
     const navigate = useNavigate();
     const location = useLocation();
 
-    // Si vienes de register, prefill email
     const prefill = (location.state as any)?.emailPrefill ?? "";
     const registered = (location.state as any)?.registered ?? false;
 
@@ -20,7 +75,9 @@ export default function Login() {
     const [password, setPassword] = useState("");
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
-    const [ok, setOk] = useState<string | null>(registered ? "Cuenta creada correctamente. Ahora inicia sesión." : null);
+    const [ok, setOk] = useState<string | null>(
+        registered ? "Cuenta creada correctamente. Ahora inicia sesión." : null
+    );
 
     async function handleSubmit(e: React.FormEvent) {
         e.preventDefault();
@@ -34,16 +91,43 @@ export default function Login() {
 
         setLoading(true);
         try {
-            // 🚀 RUTA LOGIN: /login (ajusta si tu backend usa /auth/login)
+            // Login
             const data = await apiFetch<LoginResponse>("/login", {
                 method: "POST",
                 body: { email, password },
             });
 
-            const token = data.token ?? data.access_token;
+            // Guarda token
+            const rawToken = data.token ?? data.access_token ?? null;
+            const token = normalizeToken(rawToken);
             if (token) localStorage.setItem("auth_token", token);
 
-            // Redirect a landing page
+            // 1) Intento directo: roles en el JWT
+            if (token) {
+                const payload = parseJwt(token);
+                if (hasAdminRoleFromAny(payload)) {
+                    navigate("/admin-portal", { replace: true });
+                    return;
+                }
+            }
+
+            // 2) Fallback: roles desde /me (por si el JWT no trae roles)
+            if (token) {
+                try {
+                    const me = await apiFetch<MeResponse>("/me", { method: "GET", auth: true });
+                    const isAdmin = hasAdminRoleFromAny({
+                        roles: me?.roles,
+                    });
+                    if (isAdmin) {
+                        navigate("/admin-portal", { replace: true });
+                        return;
+                    }
+                } catch {
+                    // si falla /me, seguimos con el flujo normal
+                }
+            }
+
+            // No es admin → flujo original
             navigate("/", { replace: true });
         } catch (err: any) {
             setError(err.message || "Error de autenticación");
