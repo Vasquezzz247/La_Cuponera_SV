@@ -7,6 +7,9 @@ use App\Models\User;
 use Illuminate\Support\Facades\Hash;
 use Tymon\JWTAuth\Facades\JWTAuth;
 use App\Models\BusinessRequest;
+use Illuminate\Validation\Rules\Password;
+use Spatie\Permission\Models\Role;
+use Illuminate\Validation\Rule;
 
 class AuthController extends Controller
 {
@@ -127,6 +130,37 @@ class AuthController extends Controller
         ]);
     }
 
+    public function changePassword(Request $request)
+    {
+        $request->validate([
+            'current_password'      => 'required|string',
+            'new_password'          => ['required','string','min:6','confirmed'],
+        ]);
+
+        $user = auth()->user();
+
+        if (!Hash::check($request->current_password, $user->password)) {
+            return response()->json(['message' => 'La contraseña actual no es correcta'], 422);
+        }
+
+        // evita reutilizar la misma contraseña
+        if (Hash::check($request->new_password, $user->password)) {
+            return response()->json(['message' => 'La nueva contraseña no puede ser igual a la actual'], 422);
+        }
+
+        $user->password = Hash::make($request->new_password);
+        $user->save();
+
+        try {
+            JWTAuth::invalidate(JWTAuth::getToken());
+        } catch (\Throwable $e) {
+
+        }
+
+        return response()->json([
+            'message' => 'Contraseña actualizada. Vuelve a iniciar sesión.'
+        ]);
+    }
 
     // Admin rejects
     public function rejectBusinessRequest($id)
@@ -135,5 +169,53 @@ class AuthController extends Controller
         $request->update(['status' => 'rejected']);
 
         return response()->json(['message' => 'Solicitud rechazada']);
+    }
+
+    // ---------------------------------------------------------
+    // NUEVO MÉTODO: Cambiar rol de usuarios (solo admin)
+    // ---------------------------------------------------------
+    public function changeUserRole(Request $request, $id)
+    {
+        $data = $request->validate([
+            'role' => ['required', 'string', Rule::in(['user', 'business', 'admin'])],
+        ]);
+
+        $current = auth()->user();
+        $target = User::findOrFail($id);
+        $newRole = $data['role'];
+
+        // 1) no puede cambiar su propio rol
+        if ($current->id === $target->id) {
+            return response()->json(['message' => 'No puedes cambiar tu propio rol.'], 422);
+        }
+
+        // 2) no se puede convertir a admin a un business
+        if ($newRole === 'admin' && $target->hasRole('business')) {
+            return response()->json(['message' => 'Un usuario con rol business no puede convertirse en admin.'], 422);
+        }
+
+        // 3) no se puede quitar el rol admin si es el último admin
+        if ($target->hasRole('admin') && $newRole !== 'admin') {
+            $adminCount = Role::where('name', 'admin')->first()?->users()->count() ?? 0;
+            if ($adminCount <= 1) {
+                return response()->json(['message' => 'No puedes eliminar el último administrador del sistema.'], 422);
+            }
+        }
+
+        // Verificar rol válido
+        if (!Role::where('name', $newRole)->exists()) {
+            return response()->json(['message' => 'Rol inválido.'], 422);
+        }
+
+        $target->syncRoles([$newRole]);
+
+        return response()->json([
+            'message' => "Rol actualizado a '{$newRole}'",
+            'user' => [
+                'id' => $target->id,
+                'email' => $target->email,
+                'roles' => $target->getRoleNames(),
+            ],
+        ]);
     }
 }

@@ -23,11 +23,11 @@ const Hero: React.FC = () => {
 
                         {/* Botones */}
                         <div className="hero-buttons">
-                            <Link to="/registro" className="btn btn-primary">
+                            <Link to="/register" className="btn btn-primary">
                                 Comenzar Ahora
                             </Link>
-                            <Link to="/como-funciona" className="btn btn-outline">
-                                ¿Cómo funciona?
+                            <Link to="/ofertas" className="btn btn-outline">
+                                Descubre ofertas
                             </Link>
                         </div>
 

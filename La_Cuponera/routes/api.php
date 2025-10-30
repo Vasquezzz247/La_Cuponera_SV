@@ -5,6 +5,7 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\OfferController;
 use App\Http\Controllers\AdminReportController;
+use App\Http\Controllers\PasswordResetController;
 
 // ----------------------------
 // Public offers
@@ -19,13 +20,24 @@ Route::post('register', [AuthController::class, 'register']);
 Route::post('login', [AuthController::class, 'login']);
 
 // ----------------------------
+// Password reset (públicas)
+// ----------------------------
+Route::post('password/forgot', [PasswordResetController::class, 'requestReset'])->middleware('throttle:5,1');
+Route::post('password/reset',  [PasswordResetController::class, 'reset'])->middleware('throttle:10,1');
+
+// ----------------------------
 // Authenticated routes
 // ----------------------------
 Route::middleware('auth:api')->group(function () {
 
-    // profile
+    // Perfil / sesión
     Route::get('me', [AuthController::class, 'me']);
     Route::post('logout', [AuthController::class, 'logout']);
+
+    // ------------------------
+    // Cambio de contraseña (logueado)
+    // ------------------------
+    Route::post('password/change', [AuthController::class, 'changePassword']);
 
     // ------------------------
     // Business only
@@ -38,16 +50,16 @@ Route::middleware('auth:api')->group(function () {
         Route::delete('offers/{offer}', [OfferController::class, 'destroy'])->whereNumber('offer');
     });
 
-    // buy offer
+    // Comprar oferta
     Route::post('offers/{offer}/buy', [OfferController::class, 'buy'])->whereNumber('offer');
 
     // ------------------------
-    // My coupons (user)
+    // Mis cupones
     // ------------------------
     Route::get('my/coupons', [OfferController::class, 'myCoupons']);
 
     // ------------------------
-    // Business request (user → admin)
+    // Solicitud de empresa (user → admin)
     // ------------------------
     Route::post('request-business', [AuthController::class, 'requestBusiness']);
 
@@ -55,19 +67,25 @@ Route::middleware('auth:api')->group(function () {
     // Admin only
     // ------------------------
     Route::middleware('role:admin')->group(function () {
-        // User manage
+        // Gestión de usuarios
         Route::get('users', [AuthController::class, 'indexUsers']);
 
-        // Role test
+        // Cambiar rol de usuarios (nuevo)
+        Route::post('admin/users/{id}/role', [AuthController::class, 'changeUserRole'])->whereNumber('id');
+
+        // Crear nuevos administradores
+        Route::post('users/admin', [AuthController::class, 'registerAdmin']);
+
+        // Test de rol admin
         Route::get('admin/ping', fn() => ['ok' => true, 'role' => 'admin']);
 
-        // Business request
+        // Solicitudes de negocio
         Route::get('business-requests', [AuthController::class, 'listBusinessRequests']);
         Route::post('business-requests/{id}/approve', [AuthController::class, 'approveBusinessRequest']);
         Route::post('business-requests/{id}/reject', [AuthController::class, 'rejectBusinessRequest']);
 
         // ------------------------
-        // Admin reports
+        // Reportes (admin)
         // ------------------------
         Route::get('admin/reports/companies', [AdminReportController::class, 'byCompany']);
         Route::get('admin/reports/companies/{user}', [AdminReportController::class, 'companyDetail'])->whereNumber('user');

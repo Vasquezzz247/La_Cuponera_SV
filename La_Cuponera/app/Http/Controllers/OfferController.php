@@ -23,7 +23,7 @@ class OfferController extends Controller
 
         // si hay un query ?q=busqueda
         if ($search = $request->query('q')) {
-            $q->where('title', 'ilike', "%{$search}%"); // ilike es PostgreSQL case-insensitive
+            $q->where('title', 'ilike', "%{$search}%");
         }
 
         $offers = $q->paginate(12);
@@ -36,10 +36,15 @@ class OfferController extends Controller
     {
         $this->authorize('create', Offer::class);
 
-        $offer = Offer::create([
-            ...$request->validated(),
-            'user_id' => auth()->id(),
-        ]);
+        $data = $request->validated();
+        $data['user_id'] = auth()->id();
+
+        if ($request->hasFile('image')) {
+            $path = $request->file('image')->store('offers', 'public');
+            $data['image_path'] = $path;
+        }
+
+        $offer = Offer::create($data);
 
         return new OfferResource($offer->load('owner'));
     }
@@ -58,16 +63,19 @@ class OfferController extends Controller
         return new OfferResource($offer->load('owner'));
     }
 
-    // udate
     public function update(UpdateOfferRequest $request, Offer $offer)
     {
         $this->authorize('update', $offer);
 
         $offer->fill($request->validated());
-        $dirty = $offer->isDirty();   // ¿cambió algo?
-        if ($dirty) {
-            $offer->save();
+
+        if ($request->hasFile('image')) {
+            if ($offer->image_path) \Storage::disk('public')->delete($offer->image_path);
+            $offer->image_path = $request->file('image')->store('offers', 'public');
         }
+
+        $dirty = $offer->isDirty();
+        if ($dirty) $offer->save();
 
         return (new OfferResource($offer->refresh()->load('owner')))
             ->additional(['meta' => ['updated' => $dirty]]);
@@ -107,10 +115,7 @@ class OfferController extends Controller
             return response()->json(['message' => 'Agotado'], 422);
         }
 
-        // ===================
-        // "Procesar" pago
-        // ===================
-        // No guardamos tarjeta; sólo last4 + marca básica por BIN.
+        // Pago simulado (igual que tenías)
         $num = preg_replace('/\D/', '', $request->card_number);
         $brand = match (true) {
             str_starts_with($num, '4') => 'visa',
@@ -121,11 +126,10 @@ class OfferController extends Controller
         $last4 = substr($num, -4);
 
         $unit = (float) $offer->offer_price;
-        $pct  = (float) ($offer->owner->platform_fee_percent ?? 0); // viene del user (empresa)
+        $pct  = (float) ($offer->owner->platform_fee_percent ?? 0);
         $fee  = round($unit * $pct / 100, 2);
         $biz  = round($unit - $fee, 2);
 
-        // validar que no sobrepase el stock ni el límite (compramos 1 por request)
         if (!is_null($offer->quantity) && ($offer->coupons_count + 1) > $offer->quantity) {
             return response()->json(['message' => 'Agotado'], 422);
         }
@@ -133,13 +137,11 @@ class OfferController extends Controller
             return response()->json(['message' => 'Límite de 5 cupones para esta oferta'], 422);
         }
 
-        // transacción por seguridad
         $coupon = DB::transaction(function () use ($offer, $user, $unit, $pct, $fee, $biz, $brand, $last4) {
-            // Generar código único y recibo
-            do { $code = Str::upper(Str::random(12)); } while (Coupon::where('code', $code)->exists());
-            do { $receipt = 'R-' . Str::upper(Str::random(10)); } while (Coupon::where('receipt_no', $receipt)->exists());
+            do { $code = \Str::upper(\Str::random(12)); } while (Coupon::where('code', $code)->exists());
+            do { $receipt = 'R-' . \Str::upper(\Str::random(10)); } while (Coupon::where('receipt_no', $receipt)->exists());
 
-            return Coupon::create([
+            $coupon = Coupon::create([
                 'offer_id' => $offer->id,
                 'user_id'  => $user->id,
                 'code'     => $code,
@@ -153,6 +155,16 @@ class OfferController extends Controller
                 'card_last4'=> $last4,
                 'receipt_no'=> $receipt,
             ]);
+
+            $totalCents = (int) round(($biz + $fee) * 100);
+            Offer::whereKey($offer->id)->update([
+                'purchases_count' => DB::raw('purchases_count + 1'),
+                'tickets_sold'    => DB::raw('tickets_sold + 1'),
+                'revenue_cents'   => DB::raw("revenue_cents + {$totalCents}"),
+                'updated_at'      => now(),
+            ]);
+
+            return $coupon;
         });
 
         return response()->json([

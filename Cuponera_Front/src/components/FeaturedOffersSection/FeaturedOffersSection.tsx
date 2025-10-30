@@ -1,71 +1,13 @@
-// src/components/FeaturedOffers/FeaturedOffersSection.tsx
 import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Link } from "react-router-dom";
 import OfferCard from "../OfferCard/OfferCard";
-import { OffersService, type Offer } from "@/services/offers";
+import OffersService, { type Offer as ApiOffer } from "@/services/offers";
 import "./FeaturedOffersSection.css";
 
-type CardOffer = {
-    id: number;
-    title: string;
-    company: string;
-    image: string;
-    discount: number;        // %
-    category: string;
-    discountPrice: number;   // offer_price
-    originalPrice: number;   // regular_price
-    rating: number;
-    reviews: number;
-    location: string;
-    timeLeft: string;
-};
-
-function percentOff(regular?: number, offer?: number) {
-    if (!regular || !offer || regular <= 0) return 0;
-    const pct = Math.round((1 - offer / regular) * 100);
-    return Math.max(0, Math.min(100, pct));
-}
-
-function daysLeftText(ends_at?: string) {
-    if (!ends_at) return "";
-    const end = new Date(ends_at);
-    const now = new Date();
-    // normaliza a medianoche para contar días enteros
-    end.setHours(0, 0, 0, 0);
-    now.setHours(0, 0, 0, 0);
-    const diffMs = end.getTime() - now.getTime();
-    const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
-
-    if (diffDays < 0) return "Expirada";
-    if (diffDays === 0) return "Hoy";
-    if (diffDays === 1) return "1 día";
-    return `${diffDays} días`;
-}
-
-function mapToCard(o: Offer): CardOffer {
-    return {
-        id: Number(o.id),
-        title: o.title,
-        company:
-            // si tu API manda negocio embebido, ajusta estos campos
-            (o as any).business_name ??
-            (o as any).business?.name ??
-            "Empresa",
-        image: (o as any).image_url ?? "",
-        discount: percentOff(o.regular_price as any, o.offer_price as any),
-        category: (o as any).category ?? "General",
-        discountPrice: Number(o.offer_price),
-        originalPrice: Number(o.regular_price),
-        rating: (o as any).rating ?? 0,
-        reviews: (o as any).reviews ?? 0,
-        location: (o as any).location ?? "—",
-        timeLeft: daysLeftText(o.ends_at as any),
-    };
-}
-
 export default function FeaturedOffers() {
-    const [items, setItems] = useState<CardOffer[]>([]);
+    // ahora guardamos directamente el modelo del backend
+    const [items, setItems] = useState<ApiOffer[]>([]);
     const [loading, setLoading] = useState(true);
     const [err, setErr] = useState<string | null>(null);
 
@@ -75,11 +17,13 @@ export default function FeaturedOffers() {
             try {
                 setErr(null);
                 setLoading(true);
-                // si tu API soporta paginación por query params, puedes pasar { per_page: 8 }
-                const res = await OffersService.list();
-                const list = Array.isArray(res) ? res : (res as any)?.data ?? [];
-                const mapped = list.map(mapToCard).slice(0, 8);
-                if (mounted) setItems(mapped);
+
+                // si tu API soporta paginación, pide solo 8
+                const res = await OffersService.list({ per_page: 8 });
+
+                // El endpoint puede devolver un array simple o { data: [...] }
+                const list: ApiOffer[] = Array.isArray(res) ? (res as ApiOffer[]) : ((res as any)?.data ?? []);
+                if (mounted) setItems(list.slice(0, 8));
             } catch (e: any) {
                 if (mounted) setErr(e?.message || "No se pudieron cargar las ofertas.");
             } finally {
@@ -108,12 +52,8 @@ export default function FeaturedOffers() {
                 </div>
 
                 {/* Estados */}
-                {loading && (
-                    <div className="py-10 text-center text-gray-500">Cargando ofertas…</div>
-                )}
-                {err && !loading && (
-                    <div className="py-10 text-center text-red-600">{err}</div>
-                )}
+                {loading && <div className="py-10 text-center text-gray-500">Cargando ofertas…</div>}
+                {err && !loading && <div className="py-10 text-center text-red-600">{err}</div>}
 
                 {/* Scroll horizontal */}
                 {!loading && !err && (
@@ -121,8 +61,8 @@ export default function FeaturedOffers() {
                         <div className="featured-scroll">
                             {limitedOffers.map((offer, index) => (
                                 <OfferCard
-                                    key={offer.id}
-                                    offer={offer}
+                                    key={offer.id as any}
+                                    offer={offer}                         // ⬅️ pasamos el modelo del backend directo
                                     style={{ animationDelay: `${index * 0.1}s` }}
                                 />
                             ))}

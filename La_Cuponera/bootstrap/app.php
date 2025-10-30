@@ -13,7 +13,6 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
-        // 👇 Registramos CORS
         $middleware->append(HandleCors::class);
 
         // Aliases de Spatie

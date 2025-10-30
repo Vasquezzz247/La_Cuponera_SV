@@ -30,6 +30,7 @@ class UpdateOfferRequest extends FormRequest
             'quantity'      => 'nullable|integer|min:1',
             'description'   => 'nullable|string',
             'status'        => 'sometimes|required|in:available,unavailable',
+            'image'         => 'nullable|image|max:5120',
         ];
     }
 }

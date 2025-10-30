@@ -19,6 +19,7 @@ class StoreOfferRequest extends FormRequest
             'quantity'      => 'nullable|integer|min:1',
             'description'   => 'nullable|string',
             'status'        => 'required|in:available,unavailable',
+            'image'         => 'nullable|image|max:5120', // 5MB
         ];
     }
 }

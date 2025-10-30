@@ -1,49 +1,49 @@
 // src/services/offers.ts
 import { apiFetch } from "@/lib/http";
 
-/** Modelo principal según tu API (GET /offers, /offers/:id, /offers/mine) */
+/** Modelo principal según tu API */
 export type Offer = {
-    id: number | string;
-    title: string;
-    regular_price: number;
-    offer_price: number;
-    starts_at: string;   // "YYYY-MM-DD"
-    ends_at: string;     // "YYYY-MM-DD"
-    redeem_by: string;   // "YYYY-MM-DD"
-    quantity: number;
-    sold_out: boolean;   // <- viene en la respuesta
-    description?: string;
-    status: "available" | "sold_out" | "expired" | string;
-    owner: {             // <- viene en la respuesta
-        id: number;
-        name: string;
-    };
-    created_at?: string; // p.ej. "2025-09-24T01:41:38+00:00"
-    updated_at?: string;
-    // Campos adicionales que puedas agregar después:
-    image_url?: string;
-    [k: string]: any;
+    id: number | string,
+    title: string,
+    regular_price: number,
+    offer_price: number,
+    starts_at: string,   // YYYY-MM-DD
+    ends_at: string,     // YYYY-MM-DD
+    redeem_by: string,   // YYYY-MM-DD
+    quantity: number | null,
+    sold_out: boolean,
+    description?: string | null,
+    status: "available" | "unavailable" | string,
+    owner: { id: number; name: string },
+    created_at?: string,
+    updated_at?: string,
+    image_url?: string | null,
+    [k: string]: any,
 };
 
-/** Payload para crear (POST /offers) */
-export type OfferCreate = {
-    title: string;
-    regular_price: number;
-    offer_price: number;
-    starts_at: string;   // "YYYY-MM-DD"
-    ends_at: string;     // "YYYY-MM-DD"
-    redeem_by: string;   // "YYYY-MM-DD"
-    quantity: number;
-    description?: string;
-    status: "available" | "sold_out" | "expired" | string;
-    // image_url?: string; // si luego lo agregas en el backend, lo habilitas aquí
-    [k: string]: any;
+/** Payload JSON para crear/actualizar SIN imagen */
+export type OfferCreateJson = {
+    title: string,
+    regular_price: number,
+    offer_price: number,
+    starts_at: string,
+    ends_at: string,
+    redeem_by: string,
+    quantity: number | null,
+    description?: string | null,
+    status: "available" | "unavailable",
 };
 
-/** Payload para actualizar (PATCH /offers/:id) — parcial */
-export type OfferUpdate = Partial<OfferCreate>;
+export type OfferUpdateJson = Partial<OfferCreateJson>;
 
-/** 💳 Pago con tarjeta (POST /offers/:id/buy) */
+/** Respuestas paginadas estándar de Laravel Resource */
+export type Paginated<T> = {
+    data: T[];
+    links?: any;
+    meta?: any;
+};
+
+/** 💳 Pago con tarjeta */
 export type CardPaymentPayload = {
     card_number: string;
     exp_month: number;
@@ -51,21 +51,33 @@ export type CardPaymentPayload = {
     cvc: string;
 };
 
-/** Cupón/compras del usuario (GET /my/coupons) */
 export type Coupon = {
     id: number | string;
-    offer_id: number | string;
+    offer_id?: number | string;
     code?: string;
-    status?: "unused" | "used" | "expired" | string;
-    purchased_at?: string;
+    status?: "active" | "used" | "expired" | string;
+    paid_at?: string;
+    receipt_no?: string;
+    card_brand?: string;
+    card_last4?: string;
     redeem_by?: string;
+    offer?: {
+        id: number | string;
+        title: string;
+        price: number;
+        redeem_by: string;
+    };
     [k: string]: any;
 };
 
-/** Respuesta de compra (ajústalo si tu backend devuelve otra cosa) */
 export type PurchaseResponse = {
-    success?: boolean;
     message?: string;
+    amounts?: {
+        unit_price: number;
+        platform_fee_percent: number;
+        platform_fee_amount: number;
+        business_amount: number;
+    };
     coupon?: Coupon;
     [k: string]: any;
 };
@@ -77,8 +89,8 @@ export type ListParams = {
     status?: string;
     min_price?: number;
     max_price?: number;
-    starts_before?: string; // "YYYY-MM-DD"
-    ends_after?: string;    // "YYYY-MM-DD"
+    starts_before?: string;
+    ends_after?: string;
 };
 
 /** Helpers */
@@ -91,31 +103,47 @@ function toQuery(params?: Record<string, string | number | boolean | undefined>)
 }
 
 export const OffersService = {
-    /** GET /offers — listado público */
+    /** GET /offers — listado público (paginado) */
     list: (params?: ListParams) =>
-        apiFetch<Offer[]>(`/offers${toQuery(params as any)}`, { method: "GET" }),
+        apiFetch<Paginated<Offer>>(`/offers${toQuery(params as any)}`, { method: "GET" }),
 
-    /** GET /offers/mine — ofertas del negocio autenticado */
+    /** GET /offers/mine — ofertas del negocio autenticado (paginado) */
     mine: () =>
-        apiFetch<Offer[]>(`/offers/mine`, { method: "GET", auth: true }),
+        apiFetch<Paginated<Offer>>(`/offers/mine`, { method: "GET", auth: true }),
 
     /** GET /offers/:id — detalle público */
     get: (id: string | number) =>
         apiFetch<Offer>(`/offers/${id}`, { method: "GET" }),
 
-    /** POST /offers — crear (requiere auth) */
-    create: (payload: OfferCreate) =>
-        apiFetch<Offer>(`/offers`, { method: "POST", body: payload, auth: true }),
+    /**
+     * POST /offers — crear
+     * - Acepta JSON (OfferCreateJson)
+     * - O FormData (para subir imagen con key "image")
+     */
+    create: (payload: OfferCreateJson | FormData) =>
+        apiFetch<Offer>(`/offers`, {
+            method: "POST",
+            body: payload as any, // apiFetch debe detectar FormData para no setear Content-Type
+            auth: true,
+        }),
 
-    /** PATCH /offers/:id — actualizar (requiere auth) */
-    update: (id: string | number, payload: OfferUpdate) =>
-        apiFetch<Offer>(`/offers/${id}`, { method: "PATCH", body: payload, auth: true }),
+    /**
+     * PATCH /offers/:id — actualizar
+     * - Acepta JSON parcial
+     * - O FormData (para cambiar imagen, etc.)
+     */
+    update: (id: string | number, payload: OfferUpdateJson | FormData) =>
+        apiFetch<Offer>(`/offers/${id}`, {
+            method: "PATCH",
+            body: payload as any,
+            auth: true,
+        }),
 
-    /** DELETE /offers/:id — eliminar (requiere auth) */
+    /** DELETE /offers/:id — eliminar */
     remove: (id: string | number) =>
         apiFetch<void>(`/offers/${id}`, { method: "DELETE", auth: true }),
 
-    /** POST /offers/:id/buy — comprar oferta (requiere auth y payload de tarjeta) */
+    /** POST /offers/:id/buy — comprar oferta */
     buy: (id: string | number, payload: CardPaymentPayload) =>
         apiFetch<PurchaseResponse>(`/offers/${id}/buy`, {
             method: "POST",
@@ -123,9 +151,9 @@ export const OffersService = {
             body: payload,
         }),
 
-    /** GET /my/coupons — cupones del usuario autenticado */
+    /** GET /my/coupons — cupones del usuario autenticado (paginado en tu API; ajusta si no) */
     myCoupons: () =>
-        apiFetch<Coupon[]>(`/my/coupons`, { method: "GET", auth: true }),
+        apiFetch<Paginated<Coupon>>(`/my/coupons`, { method: "GET", auth: true }),
 };
 
 export default OffersService;

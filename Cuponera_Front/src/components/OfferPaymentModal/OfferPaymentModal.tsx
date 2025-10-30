@@ -73,7 +73,7 @@ export default function OfferPaymentModal({ offerId, onClose, onSuccess }: Props
 
         setLoading(true);
         try {
-            const res = await OffersService.buyWithCard(offerId, payload);
+            const res = await OffersService.buy(offerId, payload);
             setMsg("✅ Pago simulado exitoso. ¡Compra realizada!");
             onSuccess?.(res);
             // puedes cerrar automáticamente tras 1.2s

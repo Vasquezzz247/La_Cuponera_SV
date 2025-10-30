@@ -163,10 +163,7 @@ export function Navbar() {
 
                     {/* Desktop Navbar */}
                     <div className="nav-links">
-                        <Link to="/" className="nav-link">Inicio</Link>
                         <Link to="/ofertas" className="nav-link">Ofertas</Link>
-                        <Link to="/como-funciona" className="nav-link">¿Cómo funciona?</Link>
-
                         <div className="nav-buttons">
                             {/* Botón verde por rol */}
                             {hasBusiness ? (

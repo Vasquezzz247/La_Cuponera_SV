@@ -1,34 +1,13 @@
 // src/pages/ProfilePage.tsx
 import { useEffect, useMemo, useState } from "react";
-import { apiFetch } from "@/lib/http";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { User as UserIcon, Building2 } from "lucide-react";
 import OfferCard from "@/components/OfferCard/OfferCard";
+import OffersService, { type Offer as ApiOffer, type Paginated, type Coupon } from "@/services/offers";
+import { apiFetch } from "@/lib/http";
 
-type CardOffer = {
-  id: number;
-  title: string;
-  company: string;
-  image: string;
-  discount: number;        // %
-  category: string;
-  discountPrice: number;   // offer_price
-  originalPrice: number;   // regular_price
-  rating: number;
-  reviews: number;
-  location: string;
-  timeLeft: string;
-};
-
-type APICoupon = {
-  id: number | string;
-  offer_id?: number | string;
-  offer?: any;
-  offer_data?: any;
-  [k: string]: any;
-};
-
+/* ----------------------------- tipos ----------------------------- */
 type APIUser = {
   id: number;
   name: string;
@@ -37,82 +16,58 @@ type APIUser = {
   roles: { id: number; name: string }[];
 };
 
-const ENDPOINT_COUPONS = "/my/coupons";
 const ENDPOINT_ME = "/me";
 
-function percentOff(regular?: number, offer?: number) {
-  const r = Number(regular);
-  const o = Number(offer);
-  if (!r || !o || r <= 0) return 0;
-  const pct = Math.round((1 - o / r) * 100);
-  return Math.max(0, Math.min(100, pct));
-}
-
-function daysLeftText(ends_at?: string) {
-  if (!ends_at) return "";
-  const end = new Date(ends_at);
+/* ------------------------------ helpers ------------------------------ */
+function daysLeftText(iso?: string) {
+  if (!iso) return "";
+  const end = new Date(iso);
   const now = new Date();
   end.setHours(0, 0, 0, 0);
   now.setHours(0, 0, 0, 0);
   const diffMs = end.getTime() - now.getTime();
-  const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+  const diffDays = Math.ceil(diffMs / 86400000);
   if (diffDays < 0) return "Expirada";
   if (diffDays === 0) return "Hoy";
   if (diffDays === 1) return "1 día";
   return `${diffDays} días`;
 }
 
-// Normaliza lo que venga de /my/coupons a lo que necesita OfferCard
-function couponToCardOffer(c: APICoupon): CardOffer | null {
-  const o =
-    c.offer ??
-    c.offer_data ??
-    (("title" in c || "regular_price" in c) ? c : null);
-
+/** Convierte un cupón de /my/coupons a un objeto “Offer” compatible con OfferCard */
+function couponToOffer(c: Coupon): ApiOffer | null {
+  const o = c.offer;
   if (!o) return null;
 
-  const id = Number(o.id ?? c.offer_id ?? c.id ?? 0);
-  const title = String(o.title ?? "Cupón");
-  const regular = Number(o.regular_price ?? 0);
-  const offerPrice = Number(o.offer_price ?? 0);
-  const company =
-    o.business_name ??
-    o.business?.name ??
-    o.company ??
-    "Empresa";
-  const image = o.image_url ?? o.image ?? "";
-  const category = o.category ?? "General";
-  const rating = Number(o.rating ?? 0);
-  const reviews = Number(o.reviews ?? 0);
-  const location = o.location ?? "—";
-  const timeLeft = daysLeftText(o.ends_at ?? o.redeem_by ?? o.expires_at);
+  const price = Number(o.price ?? 0); // solo viene un precio en /my/coupons
 
-  return {
-    id,
-    title,
-    company,
-    image,
-    discount: percentOff(regular, offerPrice),
-    category,
-    discountPrice: offerPrice || 0,
-    originalPrice: regular || 0,
-    rating,
-    reviews,
-    location,
-    timeLeft,
+  const mapped: ApiOffer & Record<string, any> = {
+    id: Number(o.id ?? c.id ?? 0),
+    title: o.title ?? "Cupón",
+    regular_price: price,          // para la card: no dejamos huecos
+    offer_price: price,            // mismo precio => 0% “descuento”
+    starts_at: "",                 // no disponible aquí
+    ends_at: o.redeem_by ?? null,  // la card usa esto para “x días”
+    redeem_by: o.redeem_by ?? null,
+    quantity: null,
+    sold_out: false,
+    description: null,
+    status: "available",
+    owner: { id: 0, name: "Empresa" },
+    image_url: (o as any).image_url ?? null,
+
+    // extras útiles para tu modal/detalle (no se usan en la card):
+    _coupon_id: c.id,
+    _receipt_no: c.receipt_no,
+    _paid_at: c.paid_at,
   };
+
+  return mapped as ApiOffer;
 }
 
-// Clases de columnas estáticas (necesario para Tailwind)
-function gridColsClass(cols: 3 | 4) {
-  return cols === 3
-    ? "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3"
-    : "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4";
-}
-
+/* ------------------------------- página ------------------------------ */
 export default function ProfilePage() {
   const [loading, setLoading] = useState(true);
-  const [coupons, setCoupons] = useState<CardOffer[]>([]);
+  const [offers, setOffers] = useState<ApiOffer[]>([]);
   const [cols] = useState<3 | 4>(4);
 
   // usuario
@@ -120,29 +75,30 @@ export default function ProfilePage() {
   const hasBusiness = user?.roles?.some((r) => r.name.toLowerCase() === "business");
   const fullName = `${user?.name ?? ""} ${user?.last_name ?? ""}`.trim();
 
-  // fetch paralelo de /me y /my/coupons
   useEffect(() => {
     let mounted = true;
 
     (async () => {
       try {
+        setLoading(true);
+
         const [me, couponsRes] = await Promise.all([
           apiFetch<APIUser>(ENDPOINT_ME, { method: "GET", auth: true }),
-          apiFetch<APICoupon[] | { data: APICoupon[] }>(ENDPOINT_COUPONS, {
-            method: "GET",
-            auth: true,
-          }),
+          OffersService.myCoupons(), // <- usamos tu service
         ]);
 
         if (mounted) setUser(me);
 
-        const raw = Array.isArray(couponsRes) ? couponsRes : (couponsRes as any)?.data ?? [];
-        const mapped = raw.map(couponToCardOffer).filter(Boolean) as CardOffer[];
-        if (mounted) setCoupons(mapped);
+        const list: Coupon[] = Array.isArray(couponsRes)
+          ? (couponsRes as unknown as Coupon[])
+          : ((couponsRes as Paginated<Coupon>)?.data ?? []);
+
+        const mapped = list.map(couponToOffer).filter(Boolean) as ApiOffer[];
+        if (mounted) setOffers(mapped);
       } catch {
         if (mounted) {
           setUser(null);
-          setCoupons([]);
+          setOffers([]);
         }
       } finally {
         if (mounted) setLoading(false);
@@ -152,13 +108,16 @@ export default function ProfilePage() {
     return () => { mounted = false; };
   }, []);
 
-  // stats simples
+  // stats simples basados en offers ya mapeadas
   const stats = useMemo(() => {
-    const total = coupons.length;
-    const expirados = coupons.filter((c) => c.timeLeft === "Expirada").length;
+    const total = offers.length;
+    const expirados = offers.filter((o) => {
+      const end = (o as any).ends_at ?? (o as any).redeem_by;
+      return daysLeftText(end) === "Expirada";
+    }).length;
     const activos = total - expirados;
     return { total, usados: 0, activos, expirados };
-  }, [coupons]);
+  }, [offers]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-emerald-50/30">
@@ -184,7 +143,7 @@ export default function ProfilePage() {
                 </div>
               </div>
 
-              {/* Info usuario + stats */}
+              {/* Info + stats */}
               <div className="flex-1 text-white">
                 <div className="mb-2">
                   <h1 className="text-3xl md:text-4xl font-bold bg-gradient-to-r from-white to-emerald-100 bg-clip-text text-transparent">
@@ -210,10 +169,10 @@ export default function ProfilePage() {
                 </div>
               </div>
 
-              {/* Botones de acción */}
+              {/* Acciones */}
               <div className="flex flex-col sm:flex-row gap-3">
                 <Button asChild className="bg-white/20 backdrop-blur-sm text-white border border-white/30 hover:bg-white/30 hover:scale-105 transition-all duration-200 shadow-lg">
-                  <Link to="/">Explorar ofertas</Link>
+                  <Link to="/ofertas">Explorar ofertas</Link>
                 </Button>
 
                 {hasBusiness ? (
@@ -224,7 +183,7 @@ export default function ProfilePage() {
                     </Link>
                   </Button>
                 ) : (
-                  <Button asChild className="bg-emerald-500/80 backdrop-blur-sm hover:bg-emerald-600/90 hover:scale-105 transition-all duration-200 shadow-lg border border-emerald-400/50 text-white">
+                  <Button asChild className="bg-emerald-500/80 backdrop-blur-sm hover:bg-emerald-600/90 hover:scale-105 transition-all duración-200 shadow-lg border border-emerald-400/50 text-white">
                     <Link to="/register-company">
                       <Building2 className="mr-2 h-4 w-4" />
                       Registrar empresa
@@ -239,11 +198,20 @@ export default function ProfilePage() {
 
       {/* Grid de cupones */}
       <div className="mx-auto max-w-7xl px-4 -mt-8 relative z-10 pb-24">
-        <div className={`grid gap-6 ${gridColsClass(cols)}`}>
+        <div
+          className={`grid gap-6 ${
+            cols === 3
+              ? "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3"
+              : "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
+          }`}
+        >
           {loading ? (
             Array.from({ length: cols * 2 }).map((_, i) => (
               <div key={i} className="w-full max-w-[360px] mx-auto">
-                <div className="rounded-2xl bg-white shadow-md animate-pulse border border-gray-100 w-full" style={{ height: 460 }}>
+                <div
+                  className="rounded-2xl bg-white shadow-md animate-pulse border border-gray-100 w-full"
+                  style={{ height: 460 }}
+                >
                   <div className="h-48 bg-gray-200 rounded-t-2xl" />
                   <div className="p-6 space-y-4">
                     <div className="h-4 bg-gray-200 rounded w-3/4" />
@@ -253,18 +221,16 @@ export default function ProfilePage() {
                 </div>
               </div>
             ))
-          ) : coupons.length > 0 ? (
-            coupons.map((offer) => (
-              <div key={offer.id} className="w-full max-w-[360px] mx-auto">
+          ) : offers.length > 0 ? (
+            offers.map((offer) => (
+              <div key={offer.id as any} className="w-full max-w-[360px] mx-auto">
                 <OfferCard offer={offer} style={{ width: "100%" }} />
               </div>
             ))
           ) : (
             <div className="col-span-full">
               <div className="bg-gradient-to-br from-white to-emerald-50/50 rounded-3xl shadow-xl p-12 text-center border border-emerald-100">
-                <h3 className="text-2xl font-bold text-gray-900 mb-3">
-                  ¡Aún no tienes cupones!
-                </h3>
+                <h3 className="text-2xl font-bold text-gray-900 mb-3">¡Aún no tienes cupones!</h3>
                 <p className="text-gray-600 text-lg mb-8 max-w-md mx-auto">
                   Descubre increíbles ofertas y descuentos en tus lugares favoritos
                 </p>
@@ -272,7 +238,11 @@ export default function ProfilePage() {
                   <Button asChild className="bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-700 hover:to-emerald-800 shadow-lg hover:shadow-xl transition-all duration-200 text-lg px-8 py-3 rounded-lg text-white font-semibold">
                     <Link to="/ofertas">Comprar Cupones</Link>
                   </Button>
-                  <Button asChild variant="outline" className="border-emerald-200 text-emerald-700 hover:bg-emerald-50 text-lg px-8 py-3 rounded-lg font-semibold">
+                  <Button
+                    asChild
+                    variant="outline"
+                    className="border-emerald-200 text-emerald-700 hover:bg-emerald-50 text-lg px-8 py-3 rounded-lg font-semibold"
+                  >
                     <Link to="/">Explorar Ofertas</Link>
                   </Button>
                 </div>

@@ -1,7 +1,7 @@
 // src/components/OfferQuickView.tsx
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { X, MapPin, Clock, Star, ShoppingCart } from "lucide-react";
+import { X, MapPin, Clock, Star, ShoppingCart, Receipt } from "lucide-react";
 import NoImage1 from "@/assets/NoImage1.png";
 import NoImage2 from "@/assets/NoImage2.png";
 import OffersService from "@/services/offers";
@@ -17,7 +17,6 @@ type OfferDetail = {
     business_name?: string;
     business?: { name?: string };
     owner?: { id: number; name?: string };
-    category?: string;
     regular_price?: number;
     offer_price?: number;
     starts_at?: string;
@@ -30,49 +29,69 @@ type OfferDetail = {
     status?: string;
 };
 
+type Mode = "buy" | "owned";
+
 interface Props {
     offerId: number;
     onClose: () => void;
+    /** NUEVO: controla el footer; si no lo pasas, se deduce por recibo */
+    mode?: Mode;
+    /** NUEVO: meta del cupón comprado */
+    receiptNo?: string;
+    couponCode?: string;
+    paidAt?: string; // ISO
 }
 
 function fmtMoney(v?: number) {
     if (v == null) return "—";
     return `$${Number(v).toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
 }
-
-function daysLeftText(ends_at?: string) {
-    if (!ends_at) return "";
-    const end = new Date(ends_at);
+function daysLeftText(iso?: string) {
+    if (!iso) return "";
+    const end = new Date(iso);
     const now = new Date();
     end.setHours(0, 0, 0, 0);
     now.setHours(0, 0, 0, 0);
-    const diff = Math.ceil((end.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+    const diff = Math.ceil((end.getTime() - now.getTime()) / 86400000);
     if (diff < 0) return "Expirada";
     if (diff === 0) return "Hoy";
     if (diff === 1) return "1 día";
     return `${diff} días`;
 }
+function percentOff(regular?: number, offer?: number) {
+    const r = Number(regular);
+    const o = Number(offer);
+    if (!r || !o || r <= 0) return 0;
+    const pct = Math.round((1 - o / r) * 100);
+    return Math.max(0, Math.min(100, pct));
+}
 
-export default function OfferQuickView({ offerId, onClose }: Props) {
+export default function OfferQuickView({
+    offerId,
+    onClose,
+    mode,
+    receiptNo,
+    couponCode,
+    paidAt,
+}: Props) {
     const [loading, setLoading] = useState(true);
     const [offer, setOffer] = useState<OfferDetail | null>(null);
     const [error, setError] = useState<string | null>(null);
-
     const [buyMsg, setBuyMsg] = useState<string | null>(null);
     const [showPay, setShowPay] = useState(false);
-
     const backdropRef = useRef<HTMLDivElement>(null);
 
-    // Bloquea scroll del body mientras el modal está abierto
+    // autodetección: si hay recibo => owned
+    const isOwned: boolean = (mode ?? (receiptNo ? "owned" : "buy")) === "owned";
+
     useEffect(() => {
-        const original = document.body.style.overflow;
+        const prev = document.body.style.overflow;
         document.body.style.overflow = "hidden";
         return () => {
-            document.body.style.overflow = original;
+            document.body.style.overflow = prev;
         };
     }, []);
 
-    // Carga de datos (soporta { data: {...} } o objeto plano)
     useEffect(() => {
         let mounted = true;
         (async () => {
@@ -94,16 +113,11 @@ export default function OfferQuickView({ offerId, onClose }: Props) {
         };
     }, [offerId]);
 
-    // Cierre al click fuera
     function handleBackdrop(e: React.MouseEvent) {
         if (e.target === backdropRef.current) onClose();
     }
-
-    // Cierre con tecla Esc
     useEffect(() => {
-        const onKey = (e: KeyboardEvent) => {
-            if (e.key === "Escape") onClose();
-        };
+        const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
         window.addEventListener("keydown", onKey);
         return () => window.removeEventListener("keydown", onKey);
     }, [onClose]);
@@ -113,10 +127,9 @@ export default function OfferQuickView({ offerId, onClose }: Props) {
         offer?.image_url ||
         offer?.image ||
         fallbackImages[Math.floor(Math.random() * fallbackImages.length)];
-
-    // Nombre de empresa/owner correcto según tu API
     const business =
         offer?.business_name || offer?.business?.name || offer?.owner?.name || "Empresa";
+    const discountPct = percentOff(offer?.regular_price, offer?.offer_price);
 
     if (typeof document === "undefined") return null;
 
@@ -130,7 +143,6 @@ export default function OfferQuickView({ offerId, onClose }: Props) {
                 aria-modal="true"
             >
                 <div className="relative w-full max-w-4xl bg-white rounded-2xl shadow-2xl overflow-hidden">
-                    {/* Cerrar */}
                     <button
                         onClick={onClose}
                         className="absolute right-3 top-3 z-10 inline-flex h-9 w-9 items-center justify-center rounded-full bg-white/90 text-gray-700 shadow hover:bg-white"
@@ -139,12 +151,16 @@ export default function OfferQuickView({ offerId, onClose }: Props) {
                         <X className="h-5 w-5" />
                     </button>
 
-                    {/* Imagen */}
-                    <div className="w-full h-72 md:h-80 overflow-hidden bg-gray-100">
+                    {/* Imagen + % descuento */}
+                    <div className="relative w-full h-72 md:h-80 overflow-hidden bg-gray-100">
+                        <div className="absolute left-3 top-3 z-10">
+                            <span className="inline-flex items-center rounded-md bg-red-600 px-2 py-1 text-xs font-bold text-white shadow">
+                                -{Number.isFinite(discountPct) ? discountPct : 0}%
+                            </span>
+                        </div>
                         <img src={img} alt={offer?.title ?? "Oferta"} className="w-full h-full object-cover" />
                     </div>
 
-                    {/* Body */}
                     <div className="p-6 md:p-8">
                         {loading ? (
                             <div className="animate-pulse space-y-4">
@@ -162,22 +178,18 @@ export default function OfferQuickView({ offerId, onClose }: Props) {
                                         <p className="text-gray-600 mt-1">{business}</p>
                                     </div>
 
-                                    {/* Precio */}
                                     <div className="text-right">
                                         <div className="text-emerald-700 text-3xl font-bold">
                                             {fmtMoney(offer.offer_price)}
                                         </div>
-                                        <div className="text-gray-400 line-through">
-                                            {fmtMoney(offer.regular_price)}
-                                        </div>
+                                        <div className="text-gray-400 line-through">{fmtMoney(offer.regular_price)}</div>
                                     </div>
                                 </div>
 
-                                {/* Meta */}
                                 <div className="mt-5 grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm text-gray-600">
                                     <div className="inline-flex items-center gap-2">
                                         <MapPin className="h-4 w-4 text-emerald-700" />
-                                        <span>{offer.location ?? "—"}</span>
+                                        <span>SV</span>
                                     </div>
                                     <div className="inline-flex items-center gap-2">
                                         <Clock className="h-4 w-4 text-emerald-700" />
@@ -185,34 +197,58 @@ export default function OfferQuickView({ offerId, onClose }: Props) {
                                     </div>
                                     <div className="inline-flex items-center gap-2">
                                         <Star className="h-4 w-4 text-emerald-700" />
-                                        <span>
-                                            {offer.rating ?? 0}{" "}
-                                            <span className="text-gray-400">({offer.reviews ?? 0})</span>
-                                        </span>
+                                        <span>5</span>
                                     </div>
                                 </div>
 
-                                {/* Descripción */}
                                 {offer.description && (
                                     <p className="mt-5 text-gray-700 leading-relaxed">{offer.description}</p>
                                 )}
 
-                                {/* Acciones */}
-                                <div className="mt-7 flex flex-col sm:flex-row gap-3">
-                                    <Button
-                                        onClick={() => setShowPay(true)}
-                                        className="bg-emerald-700 hover:bg-emerald-800 text-white"
-                                    >
-                                        <ShoppingCart className="h-4 w-4 mr-2" />
-                                        Comprar
-                                    </Button>
-                                    <Button
-                                        variant="outline"
-                                        onClick={onClose}
-                                        className="border-emerald-200 text-emerald-700 hover:bg-emerald-50"
-                                    >
-                                        Cerrar
-                                    </Button>
+                                {/* Footer: comprar vs. datos del cupón */}
+                                <div className="mt-7 flex flex-col sm:flex-row gap-3 items-start sm:items-center">
+                                    {isOwned ? (
+                                        <>
+                                            <div className="inline-flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-800 px-3 py-2 text-sm font-semibold">
+                                                <Receipt className="h-4 w-4" />
+                                                <span>Recibo: {receiptNo ?? "—"}</span>
+                                            </div>
+                                            {couponCode && (
+                                                <div className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 text-gray-700 px-3 py-2 text-sm">
+                                                    Código: <span className="font-mono">{couponCode}</span>
+                                                </div>
+                                            )}
+                                            {paidAt && (
+                                                <div className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 text-gray-700 px-3 py-2 text-sm">
+                                                    Pagado: {new Date(paidAt).toLocaleString()}
+                                                </div>
+                                            )}
+                                            <Button
+                                                variant="outline"
+                                                onClick={onClose}
+                                                className="border-emerald-200 text-emerald-700 hover:bg-emerald-50"
+                                            >
+                                                Cerrar
+                                            </Button>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Button
+                                                onClick={() => setShowPay(true)}
+                                                className="bg-emerald-700 hover:bg-emerald-800 text-white"
+                                            >
+                                                <ShoppingCart className="h-4 w-4 mr-2" />
+                                                Comprar
+                                            </Button>
+                                            <Button
+                                                variant="outline"
+                                                onClick={onClose}
+                                                className="border-emerald-200 text-emerald-700 hover:bg-emerald-50"
+                                            >
+                                                Cerrar
+                                            </Button>
+                                        </>
+                                    )}
                                 </div>
 
                                 {buyMsg && (
@@ -233,8 +269,7 @@ export default function OfferQuickView({ offerId, onClose }: Props) {
                 </div>
             </div>
 
-            {/* Modal de Pago */}
-            {showPay && offer && (
+            {!isOwned && showPay && offer && (
                 <OfferPaymentModal
                     offerId={offer.id}
                     onClose={() => setShowPay(false)}

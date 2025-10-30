@@ -7,6 +7,9 @@ import RegisterCompany from "./pages/RegisterCompany";
 import ProfilePage from "@/pages/ProfilePage";
 import BusinessPortalPage from "./pages/BusinessPortalPage";
 import AdminPortalPage from "./pages/AdminDashboardPage";
+import AllOffers from "./pages/AllOffersView";
+import ResetPassword from "./pages/ResetPassword";
+import AdminUsersPage from "@/pages/admin/UsersPage";
 
 function App() {
   return (
@@ -18,6 +21,9 @@ function App() {
       <Route path="/register-company" element={<RegisterCompany />} />
       <Route path="/business-portal/*" element={<BusinessPortalPage />} />
       <Route path="/admin-portal/*" element={<AdminPortalPage />} />
+      <Route path="/ofertas" element={<AllOffers />} />
+      <Route path="/reset-password" element={<ResetPassword />} />
+      <Route path="/admin/users" element={<AdminUsersPage />} />
       <Route path="*" element={<div style={{padding: 24}}>404</div>} />
     </Routes>
   );

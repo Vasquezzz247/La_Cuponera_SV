@@ -1,16 +1,38 @@
 // src/services/reports.ts
 import { apiFetch } from "@/lib/http";
 
-/**
- * Estructura devuelta por GET /admin/reports/companies
- */
+
 export type CompanyReport = {
     business_id: number;
     business_name: string;
     coupons_sold: number;
-    gross_sales: string;      // viene como string numérica
-    platform_gain: string;    // ganancia para la plataforma
-    business_gain: string;    // ganancia para el negocio
+    gross_sales: string;
+    platform_gain: string;
+    business_gain: string;
+};
+
+/** Representación de usuario con rol */
+export type UserItem = {
+    id: number;
+    name: string;
+    email: string;
+    created_at: string;
+    roles: { id: number; name: string }[];
+};
+
+/** Payload para cambiar rol */
+export type ChangeRolePayload = {
+    role: "user" | "admin" | "business";
+};
+
+/** Respuesta al cambiar rol */
+export type ChangeRoleResponse = {
+    message: string;
+    user: {
+        id: number;
+        email: string;
+        roles: string[];
+    };
 };
 
 /** Filtros opcionales (si tu backend los acepta en querystring) */
@@ -30,7 +52,7 @@ function toQuery(params?: Record<string, string | number | boolean | undefined>)
 }
 
 /**
- * Servicio de reportes administrativos
+ * Servicio de reportes y administración (admin)
  */
 export const ReportsService = {
     /**
@@ -41,6 +63,27 @@ export const ReportsService = {
         apiFetch<CompanyReport[]>(`/admin/reports/companies${toQuery(filters as any)}`, {
             method: "GET",
             auth: true,
+        }),
+
+    /**
+     * Listado de usuarios
+     * GET /users
+     */
+    getUsers: () =>
+        apiFetch<UserItem[]>(`/users`, {
+            method: "GET",
+            auth: true,
+        }),
+
+    /**
+     * Cambiar rol de un usuario
+     * POST /admin/users/{id}/role
+     */
+    changeUserRole: (userId: number | string, role: ChangeRolePayload["role"]) =>
+        apiFetch<ChangeRoleResponse>(`/admin/users/${userId}/role`, {
+            method: "POST",
+            auth: true,
+            body: { role },
         }),
 };
 
