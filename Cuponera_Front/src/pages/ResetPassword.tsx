@@ -3,12 +3,14 @@ import { useState } from "react";
 import { useSearchParams, Link, useNavigate } from "react-router-dom";
 import { resetPassword } from "@/services/password";
 
+/*
 type ResetPasswordPayload = {
     email: string;
     token: string;
     password: string;
     password_confirmation: string;
 };
+*/
 
 export default function ResetPassword() {
     const navigate = useNavigate();

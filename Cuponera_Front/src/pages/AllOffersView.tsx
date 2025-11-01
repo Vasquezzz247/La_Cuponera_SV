@@ -5,6 +5,7 @@ import { Search, ChevronDown, Grid3x3, List, X } from "lucide-react";
 import OfferCard from "@/components/OfferCard/OfferCard";
 import OffersService, { type Offer as ApiOffer } from "@/services/offers";
 
+/*
 function humanizeTimeLeft(expiresAt?: string | Date): string {
     if (!expiresAt) return "—";
     const end = new Date(expiresAt).getTime();
@@ -15,6 +16,7 @@ function humanizeTimeLeft(expiresAt?: string | Date): string {
     const hours = Math.ceil(diff / (1000 * 60 * 60));
     return `${hours} h`;
 }
+*/
 
 export default function AllOffersView() {
     // UI state
