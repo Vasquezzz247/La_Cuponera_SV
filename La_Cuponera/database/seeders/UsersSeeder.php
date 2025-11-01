@@ -6,11 +6,14 @@ use Illuminate\Database\Seeder;
 use App\Models\User;
 use Spatie\Permission\Models\Role;
 use Illuminate\Support\Facades\Hash;
+use Faker\Factory as Faker; // ✅ Agregado
 
 class UsersSeeder extends Seeder
 {
     public function run(): void
     {
+        $faker = Faker::create(); // ✅ Instancia de Faker
+
         // === Crear roles ===
         foreach (['user', 'business', 'admin'] as $r) {
             Role::findOrCreate($r, 'api');
@@ -45,9 +48,9 @@ class UsersSeeder extends Seeder
                 [
                     'name' => $name,
                     'last_name' => $last,
-                    'dui' => fake()->unique()->numerify('0#######-#'),
+                    'dui' => $faker->unique()->numerify('0#######-#'),
                     'username' => strtolower(explode('@', $email)[0]),
-                    'date_of_birth' => fake()->date('Y-m-d', '2000-01-01'),
+                    'date_of_birth' => $faker->date('Y-m-d', '2000-01-01'),
                     'password' => Hash::make('business123'),
                     'platform_fee_percent' => $fee,
                 ]
@@ -60,11 +63,11 @@ class UsersSeeder extends Seeder
             $u = User::updateOrCreate(
                 ['email' => "cliente{$i}@gmail.com"],
                 [
-                    'name' => fake()->firstName(),
-                    'last_name' => fake()->lastName(),
-                    'dui' => fake()->unique()->numerify('0#######-#'),
+                    'name' => $faker->firstName(),
+                    'last_name' => $faker->lastName(),
+                    'dui' => $faker->unique()->numerify('0#######-#'),
                     'username' => "cliente{$i}",
-                    'date_of_birth' => fake()->date('Y-m-d', '2004-01-01'),
+                    'date_of_birth' => $faker->date('Y-m-d', '2004-01-01'),
                     'password' => Hash::make('user123'),
                 ]
             );
