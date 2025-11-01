@@ -1,68 +1,24 @@
 <?php
 
 return [
+    // Aplica CORS a TODAS las rutas (tienes endpoints sin /api)
+    'paths' => ['*'],
 
-    /*
-    |--------------------------------------------------------------------------
-    | Paths habilitados para CORS
-    |--------------------------------------------------------------------------
-    |
-    | Normalmente basta con 'api/*' si tus rutas están en api.php.
-    |
-    */
-    'paths' => ['api/*', 'sanctum/csrf-cookie'],
-
-    /*
-    |--------------------------------------------------------------------------
-    | Métodos HTTP permitidos
-    |--------------------------------------------------------------------------
-    */
     'allowed_methods' => ['*'],
 
-    /*
-    |--------------------------------------------------------------------------
-    | Orígenes permitidos
-    |--------------------------------------------------------------------------
-    |
-    | En dev: el host de Vite → http://localhost:5173
-    | En prod: agrega el dominio de tu frontend.
-    |
-    */
+    // Permite tu front local y luego el dominio de Vercel
     'allowed_origins' => [
         'http://localhost:5173',
+        'https://localhost:5173',
     ],
 
-    'allowed_origins_patterns' => [],
+    // Cuando despliegues el front en Vercel, esto permite *.vercel.app
+    'allowed_origins_patterns' => ['#^https://.+\.vercel\.app$#'],
 
-    /*
-    |--------------------------------------------------------------------------
-    | Headers permitidos
-    |--------------------------------------------------------------------------
-    */
     'allowed_headers' => ['*'],
-
-    /*
-    |--------------------------------------------------------------------------
-    | Headers expuestos
-    |--------------------------------------------------------------------------
-    */
     'exposed_headers' => [],
-
-    /*
-    |--------------------------------------------------------------------------
-    | Tiempo máximo de cache (en segundos)
-    |--------------------------------------------------------------------------
-    */
     'max_age' => 0,
 
-    /*
-    |--------------------------------------------------------------------------
-    | Cookies y credenciales
-    |--------------------------------------------------------------------------
-    |
-    | Ponlo en true solo si usas cookies/sesiones compartidas.
-    |
-    */
+    // Si usas tokens Bearer, déjalo en false
     'supports_credentials' => false,
-
 ];
